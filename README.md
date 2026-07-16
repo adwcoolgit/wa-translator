@@ -1,8 +1,8 @@
-﻿# WA Translator
+# WA Translator
 
 WA Translator adalah project Chrome Extension untuk membantu pengguna memahami dan menulis pesan lintas bahasa di WhatsApp Web. Produk ini menerjemahkan pesan masuk dan teks manual menggunakan AI CLI lokal melalui Native Messaging Host, dengan prinsip utama: original text tetap terlihat, user tetap mengirim secara manual, dan konten pesan tidak disimpan secara persisten.
 
-Status project saat ini: tahap Spec Kit planning sudah dibuat. Implementasi kode inti extension dan native host belum dimulai.
+Status project saat ini: Phase 1 shared infrastructure sudah tersedia untuk extension dan native host, termasuk baseline build lokal. Implementasi fitur inti domain, adapter WhatsApp, provider flow, dan UX surface production masih dilanjutkan pada phase berikutnya.
 
 ## Source of Truth
 
@@ -130,3 +130,35 @@ Before a feature is considered complete:
 - Task list: `specs/001-wa-translator-extension/tasks.md`
 
 Use these artifacts as planning references. The implementation should still be driven by the source PRD, UI/UX specification, and constitution.
+
+## Local Setup Commands
+
+Phase 1 menyiapkan scaffolding, baseline build, dan konfigurasi workspace. Implementasi feature behavior, contract enforcement, dan runtime integration masih mengikuti task phase berikutnya.
+
+Prerequisites:
+
+- Google Chrome desktop on Windows.
+- Node.js and npm for the extension workspace.
+- .NET SDK capable of targeting `net8.0` for the Windows Native Messaging companion.
+- Codex CLI and/or Claude Code CLI installed and authenticated outside the extension before provider health checks are implemented.
+
+Useful commands after dependencies are installed:
+
+```powershell
+cd extension
+npm install
+npm run typecheck
+npm run build
+npm test
+
+cd ..\native-host
+dotnet build WaTranslator.Host.sln -m:1 -p:UseSharedCompilation=false
+```
+
+Validation reminders:
+
+- Do not send WhatsApp message content to any provider before onboarding consent.
+- Do not persist source text or translated text in extension persistent storage.
+- Do not implement auto-send behavior.
+- Keep Chrome extension, content script, domain, diagnostics, native host, and provider adapter responsibilities separated.
+

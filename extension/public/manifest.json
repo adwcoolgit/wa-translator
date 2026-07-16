@@ -1,0 +1,23 @@
+{
+  "manifest_version": 3,
+  "name": "WA Translator",
+  "version": "0.0.0",
+  "description": "Translate WhatsApp Web messages through a local Native Messaging companion.",
+  "permissions": ["storage", "nativeMessaging", "commands"],
+  "host_permissions": ["https://web.whatsapp.com/*"],
+  "background": {
+    "service_worker": "assets/background.js",
+    "type": "module"
+  },
+  "content_scripts": [
+    {
+      "matches": ["https://web.whatsapp.com/*"],
+      "js": ["assets/content.js"],
+      "run_at": "document_idle"
+    }
+  ],
+  "action": {
+    "default_popup": "src/popup/index.html"
+  },
+  "options_page": "src/options/index.html"
+}
