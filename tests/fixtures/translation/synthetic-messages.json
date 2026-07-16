@@ -1,0 +1,29 @@
+[
+  {
+    "id": "incoming-en-to-id-professional",
+    "sourceLanguage": "en",
+    "targetLanguage": "id",
+    "styleId": "professional",
+    "text": "Hello Andri, please confirm PO-7781 before 17:00 WIB. Thanks ??",
+    "preserve": ["emoji", "names", "orderCodes"],
+    "expectedProtectedTokens": ["Andri", "PO-7781", "??"]
+  },
+  {
+    "id": "incoming-id-to-en-friendly",
+    "sourceLanguage": "id",
+    "targetLanguage": "en",
+    "styleId": "friendly",
+    "text": "Halo Kak, link invoice-nya ada di https://contoh.test/inv/123 dan jangan ubah ya.",
+    "preserve": ["urls"],
+    "expectedProtectedTokens": ["https://contoh.test/inv/123"]
+  },
+  {
+    "id": "mixed-rtl-cjk-preserve",
+    "sourceLanguage": "auto",
+    "targetLanguage": "id",
+    "styleId": "neutral",
+    "text": "????? ??, meeting jam 09:30 ada di Room-A7. Keep code `WT-42`.",
+    "preserve": ["names", "punctuation", "orderCodes"],
+    "expectedProtectedTokens": ["??", "09:30", "Room-A7", "WT-42"]
+  }
+]

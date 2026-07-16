@@ -1,0 +1,19 @@
+{
+  "fixtures": [
+    {
+      "name": "received-messages",
+      "kind": "incomingMessages",
+      "description": "Baseline received-message fixture with protected tokens and metadata nodes."
+    },
+    {
+      "name": "composer-empty",
+      "kind": "composer",
+      "description": "Editable composer with no draft content."
+    },
+    {
+      "name": "composer-populated",
+      "kind": "composer",
+      "description": "Editable composer with existing draft content for selection and replacement tests."
+    }
+  ]
+}
