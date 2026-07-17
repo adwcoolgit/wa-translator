@@ -3,7 +3,6 @@ import { type DiagnosticsCollector } from "../../diagnostics/diagnosticsCollecto
 import {
   createMemoryPersistentStorageArea,
   createSettingsRepository,
-  type PersistentStorageAreaLike,
   type SettingsRepository
 } from "./settingsRepository";
 import type { UserSettings } from "./userSettings";
@@ -81,3 +80,4 @@ export const createLocalDataActions = (
   diagnosticsCollector?: DiagnosticsCollector,
   sessionStorageArea?: SessionStorageAreaLike
 ): LocalDataActions => new LocalDataActions(settingsRepository, diagnosticsCollector, sessionStorageArea);
+
