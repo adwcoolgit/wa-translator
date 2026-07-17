@@ -1,5 +1,6 @@
-import { z } from "zod";
+﻿import { z } from "zod";
 
+import { onboardingStepSchema } from "../../shared/contracts/uiState";
 import { styleIdSchema } from "../../shared/contracts/translation";
 
 export const USER_SETTINGS_SCHEMA_VERSION = 1;
@@ -13,11 +14,19 @@ export const customStyleSchema = z
   })
   .strict();
 
+export const onboardingProgressSchema = z
+  .object({
+    currentStep: onboardingStepSchema,
+    consentAccepted: z.boolean()
+  })
+  .strict();
+
 export const userSettingsSchema = z
   .object({
     schemaVersion: z.literal(USER_SETTINGS_SCHEMA_VERSION),
     enabled: z.boolean(),
     onboardingStatus: z.enum(["notStarted", "inProgress", "complete", "blocked"]),
+    onboardingProgress: onboardingProgressSchema,
     privacyConsentVersion: z.string().trim().min(1),
     uiLanguage: z.string().trim().min(1),
     sourceLanguage: z.string().trim().min(1),
@@ -63,6 +72,10 @@ export const defaultUserSettings: UserSettings = {
   schemaVersion: USER_SETTINGS_SCHEMA_VERSION,
   enabled: true,
   onboardingStatus: "notStarted",
+  onboardingProgress: {
+    currentStep: "welcome",
+    consentAccepted: false
+  },
   privacyConsentVersion: DEFAULT_PRIVACY_CONSENT_VERSION,
   uiLanguage: "id",
   sourceLanguage: "auto",

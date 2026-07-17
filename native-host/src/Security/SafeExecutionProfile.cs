@@ -1,6 +1,6 @@
 namespace WaTranslator.Security;
 
-internal sealed record SafeExecutionProfile(
+public sealed record SafeExecutionProfile(
     string Name,
     string WorkingDirectoryMode,
     bool DisableShellInterpolation,

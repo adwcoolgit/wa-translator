@@ -50,6 +50,7 @@ export const translationRequestSchema = z
   .object({
     contractVersion: z.literal(TRANSLATION_CONTRACT_VERSION),
     requestId: z.string().trim().min(1),
+    provider: providerSchema,
     mode: translationModeSchema,
     targetType: translationTargetTypeSchema,
     sourceText: z.string().min(1).max(12000),

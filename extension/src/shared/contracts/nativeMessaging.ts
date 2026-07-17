@@ -1,7 +1,9 @@
-import { z } from "zod";
+﻿import { z } from "zod";
 
 import {
   TRANSLATION_CONTRACT_VERSION,
+  providerSchema,
+  sanitizedTranslationErrorSchema,
   translationRequestSchema,
   translationResponseSchema
 } from "./translation";
@@ -58,6 +60,30 @@ export const nativeLifecycleResultSchema = z
   })
   .strict();
 
+export const providerHealthCheckRequestSchema = z
+  .object({
+    requestId: z.string().trim().min(1),
+    provider: providerSchema,
+    syntheticText: z.string().trim().min(1).max(500),
+    sourceLanguage: z.string().trim().min(1),
+    targetLanguage: z.string().trim().min(1),
+    timeoutSeconds: z.number().int().min(5).max(120)
+  })
+  .strict();
+
+export const providerHealthCheckResultSchema = z
+  .object({
+    contractVersion: z.literal(TRANSLATION_CONTRACT_VERSION),
+    requestId: z.string().trim().min(1),
+    status: z.enum(["success", "error"]),
+    translation: z.string().min(1).max(12000).nullable(),
+    detectedSourceLanguage: z.string().trim().min(1).nullable(),
+    provider: providerSchema,
+    latencyMs: z.number().int().nonnegative(),
+    error: sanitizedTranslationErrorSchema.nullable()
+  })
+  .strict();
+
 export const nativeTranslationRequestMessageSchema = z
   .object({
     type: z.literal("translationRequest"),
@@ -83,6 +109,22 @@ export const nativeTranslationResponseMessageSchema = z
   })
   .strict();
 
+export const nativeProviderHealthCheckRequestMessageSchema = z
+  .object({
+    type: z.literal("providerHealthCheckRequest"),
+    protocolVersion: z.literal(NATIVE_MESSAGING_PROTOCOL_VERSION),
+    payload: providerHealthCheckRequestSchema
+  })
+  .strict();
+
+export const nativeProviderHealthCheckResultMessageSchema = z
+  .object({
+    type: z.literal("providerHealthCheckResult"),
+    protocolVersion: z.literal(NATIVE_MESSAGING_PROTOCOL_VERSION),
+    payload: providerHealthCheckResultSchema
+  })
+  .strict();
+
 export const nativeErrorMessageSchema = z
   .object({
     type: z.literal("error"),
@@ -95,12 +137,14 @@ export const nativeErrorMessageSchema = z
 export const outboundNativeHostMessageSchema = z.discriminatedUnion("type", [
   nativeHandshakeRequestSchema,
   nativeLifecycleQuerySchema,
+  nativeProviderHealthCheckRequestMessageSchema,
   nativeTranslationRequestMessageSchema
 ]);
 
 export const inboundNativeHostMessageSchema = z.discriminatedUnion("type", [
   nativeHandshakeResultSchema,
   nativeLifecycleResultSchema,
+  nativeProviderHealthCheckResultMessageSchema,
   nativeTranslationResponseMessageSchema,
   nativeErrorMessageSchema
 ]);
@@ -110,8 +154,12 @@ export type NativeHandshakeRequest = z.infer<typeof nativeHandshakeRequestSchema
 export type NativeHandshakeResult = z.infer<typeof nativeHandshakeResultSchema>;
 export type NativeLifecycleQuery = z.infer<typeof nativeLifecycleQuerySchema>;
 export type NativeLifecycleResult = z.infer<typeof nativeLifecycleResultSchema>;
+export type ProviderHealthCheckRequest = z.infer<typeof providerHealthCheckRequestSchema>;
+export type ProviderHealthCheckResult = z.infer<typeof providerHealthCheckResultSchema>;
 export type NativeTranslationRequestMessage = z.infer<typeof nativeTranslationRequestMessageSchema>;
 export type NativeTranslationResponseMessage = z.infer<typeof nativeTranslationResponseMessageSchema>;
+export type NativeProviderHealthCheckRequestMessage = z.infer<typeof nativeProviderHealthCheckRequestMessageSchema>;
+export type NativeProviderHealthCheckResultMessage = z.infer<typeof nativeProviderHealthCheckResultMessageSchema>;
 export type NativeErrorMessage = z.infer<typeof nativeErrorMessageSchema>;
 export type OutboundNativeHostMessage = z.infer<typeof outboundNativeHostMessageSchema>;
 export type InboundNativeHostMessage = z.infer<typeof inboundNativeHostMessageSchema>;
