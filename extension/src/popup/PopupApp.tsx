@@ -1,6 +1,18 @@
-﻿import React from "react";
+import React from "react";
 
+import { createUnknownProviderHealth, type ProviderHealth } from "../domain/provider/providerHealth";
+import {
+  createDefaultShortcutStatusModel,
+  getIncomingModeLabel,
+  getLanguageLabel,
+  getProviderStatusLabel,
+  getStyleLabel,
+  type ShortcutStatusModel
+} from "../domain/settings/settingsViewModel";
 import { type UserSettings } from "../domain/settings/userSettings";
+import { en } from "../shared/i18n/en";
+import { IncomingModeSelector } from "./components/IncomingModeSelector";
+import { LanguageStyleControls } from "./components/LanguageStyleControls";
 
 const openOnboarding = async (): Promise<void> => {
   if (typeof chrome === "undefined" || !chrome.tabs?.create || !chrome.runtime?.getURL) {
@@ -24,44 +36,56 @@ const openOptions = async (): Promise<void> => {
 export interface PopupAppProps {
   loading: boolean;
   settings: UserSettings;
+  providerHealth?: ProviderHealth;
+  shortcutStatus?: ShortcutStatusModel;
+  onToggleEnabled?: (value: boolean) => void;
+  onTargetLanguageChange?: (value: UserSettings["targetLanguage"]) => void;
+  onStyleChange?: (value: UserSettings["styleId"]) => void;
+  onIncomingModeChange?: (value: UserSettings["incomingMode"]) => void;
 }
 
-export function PopupApp({ loading, settings }: PopupAppProps) {
+export function PopupApp({
+  loading,
+  settings,
+  providerHealth = createUnknownProviderHealth(settings.providerActive),
+  shortcutStatus = createDefaultShortcutStatusModel(),
+  onToggleEnabled,
+  onTargetLanguageChange,
+  onStyleChange,
+  onIncomingModeChange
+}: PopupAppProps) {
   if (loading) {
-    return <main data-surface="popup">Loading WA Translator settings...</main>;
+    return <main data-surface="popup">{en.popup.loading}</main>;
   }
 
   if (settings.onboardingStatus !== "complete") {
     return (
       <main data-surface="popup">
         <header>
-          <p>WA Translator</p>
-          <h1>Setup belum selesai</h1>
+          <p>{en.appName}</p>
+          <h1>{en.popup.setupPendingTitle}</h1>
         </header>
-        <p>
-          Translasi tetap diblokir sampai privacy disclosure, local companion, dan synthetic
-          provider health check selesai.
-        </p>
+        <p>{en.popup.setupPendingBody}</p>
         <dl>
           <div>
-            <dt>Provider aktif</dt>
+            <dt>{en.popup.providerLabel}</dt>
             <dd>{settings.providerActive}</dd>
           </div>
           <div>
-            <dt>Target language</dt>
-            <dd>{settings.targetLanguage}</dd>
+            <dt>{en.popup.targetLanguageLabel}</dt>
+            <dd>{getLanguageLabel(settings.targetLanguage)}</dd>
           </div>
           <div>
-            <dt>Incoming mode</dt>
-            <dd>{settings.incomingMode}</dd>
+            <dt>{en.popup.incomingModeLabel}</dt>
+            <dd>{getIncomingModeLabel(settings.incomingMode)}</dd>
           </div>
         </dl>
         <div>
           <button onClick={() => void openOnboarding()} type="button">
-            Resume onboarding
+            {en.popup.resumeOnboarding}
           </button>
           <button onClick={() => void openOptions()} type="button">
-            Open settings
+            {en.popup.openSettings}
           </button>
         </div>
       </main>
@@ -71,29 +95,70 @@ export function PopupApp({ loading, settings }: PopupAppProps) {
   return (
     <main data-surface="popup">
       <header>
-        <p>WA Translator</p>
-        <h1>Daily controls</h1>
+        <p>{en.appName}</p>
+        <h1>{en.popup.dailyControlsTitle}</h1>
+        <label>
+          <input
+            checked={settings.enabled}
+            onChange={(event) => {
+              onToggleEnabled?.(event.currentTarget.checked);
+            }}
+            type="checkbox"
+          />
+          {en.popup.enableLabel}
+        </label>
       </header>
       <dl>
         <div>
-          <dt>Provider</dt>
-          <dd>{settings.providerActive}</dd>
+          <dt>{en.popup.providerLabel}</dt>
+          <dd>
+            {settings.providerActive.toUpperCase()} | {getProviderStatusLabel(providerHealth.state)}
+          </dd>
         </div>
         <div>
-          <dt>Translate to</dt>
-          <dd>{settings.targetLanguage}</dd>
+          <dt>{en.popup.targetLanguageLabel}</dt>
+          <dd>{getLanguageLabel(settings.targetLanguage)}</dd>
         </div>
         <div>
-          <dt>Incoming</dt>
-          <dd>{settings.incomingMode}</dd>
+          <dt>{en.popup.styleLabel}</dt>
+          <dd>{getStyleLabel(settings.styleId)}</dd>
         </div>
         <div>
-          <dt>Manual mode</dt>
-          <dd>{settings.manualMode}</dd>
+          <dt>{en.popup.manualShortcutLabel}</dt>
+          <dd>{shortcutStatus.shortcut ?? en.shortcuts.unassigned}</dd>
         </div>
       </dl>
+
+      <LanguageStyleControls
+        allowCustomStyle={settings.customStyle !== null}
+        onStyleChange={(value) => {
+          onStyleChange?.(value);
+        }}
+        onTargetLanguageChange={(value) => {
+          onTargetLanguageChange?.(value);
+        }}
+        styleId={settings.styleId}
+        targetLanguage={settings.targetLanguage}
+      />
+
+      <IncomingModeSelector
+        onChange={(value) => {
+          onIncomingModeChange?.(value);
+        }}
+        value={settings.incomingMode}
+      />
+
+      <section aria-labelledby="popup-manual-section-title">
+        <h2 id="popup-manual-section-title">{en.popup.manualShortcutLabel}</h2>
+        <p>{shortcutStatus.summary}</p>
+        <p>{shortcutStatus.details}</p>
+        <p>{en.popup.manualShortcutHelp}</p>
+      </section>
+
+      {providerHealth.lastSanitizedError ? <p>{en.popup.diagnosticsHint}</p> : null}
+
       <button onClick={() => void openOptions()} type="button">
-        Open settings
+        {en.popup.openSettings}
       </button>
     </main>
   );

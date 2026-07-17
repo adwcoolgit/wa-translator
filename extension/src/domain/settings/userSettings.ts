@@ -1,9 +1,13 @@
-﻿import { z } from "zod";
+import { z } from "zod";
 
 import { onboardingStepSchema } from "../../shared/contracts/uiState";
 import { styleIdSchema } from "../../shared/contracts/translation";
+import {
+  CURRENT_USER_SETTINGS_SCHEMA_VERSION,
+  migrateUserSettingsInput
+} from "./settingsMigration";
 
-export const USER_SETTINGS_SCHEMA_VERSION = 1;
+export const USER_SETTINGS_SCHEMA_VERSION = CURRENT_USER_SETTINGS_SCHEMA_VERSION;
 export const DEFAULT_PRIVACY_CONSENT_VERSION = "2026-07-14-v0.2";
 
 export const customStyleSchema = z
@@ -55,14 +59,6 @@ export const userSettingsSchema = z
         path: ["customStyle"]
       });
     }
-
-    if (value.styleId !== "custom" && value.customStyle !== null) {
-      context.addIssue({
-        code: z.ZodIssueCode.custom,
-        message: "customStyle must be null when styleId is not custom",
-        path: ["customStyle"]
-      });
-    }
   });
 
 export type UserSettings = z.infer<typeof userSettingsSchema>;
@@ -105,7 +101,7 @@ export const normalizeUserSettings = (input: unknown): UserSettings => {
 
   return userSettingsSchema.parse({
     ...createDefaultUserSettings(),
-    ...(typeof input === "object" ? input : {})
+    ...migrateUserSettingsInput(input)
   });
 };
 
