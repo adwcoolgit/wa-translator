@@ -1,4 +1,4 @@
-﻿// @vitest-environment jsdom
+// @vitest-environment jsdom
 import { render, screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 
@@ -21,7 +21,7 @@ describe("PopupApp", () => {
       />
     );
 
-    expect(screen.getByRole("heading", { name: /setup belum selesai/i })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: /setup not complete/i })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /resume onboarding/i })).toBeInTheDocument();
     expect(screen.queryByRole("heading", { name: /daily controls/i })).not.toBeInTheDocument();
   });

@@ -7,7 +7,7 @@ import { createSettingsRepository, type SettingsRepository } from "../../domain/
 import type { UserSettings } from "../../domain/settings/userSettings";
 import { createIncomingTranslationDiagnosticsRecorder, type IncomingTranslationDiagnosticsRecorder } from "../../diagnostics/incomingTranslationDiagnostics";
 import { sanitizedErrorCodeSchema } from "../../shared/contracts/diagnostics";
-import { createExtensionMessage, parseExtensionMessage } from "../../shared/messaging/extensionMessageBus";
+import { extensionMessageSchema, createExtensionMessage, parseExtensionMessage } from "../../shared/messaging/extensionMessageBus";
 import { SessionTranslationCache } from "../../shared/storage/sessionTranslationCache";
 import {
   sanitizedTranslationErrorSchema,
@@ -180,6 +180,7 @@ export class IncomingTranslationController {
   private settings: UserSettings | null = null;
   private activeChatScope = "active-chat";
   private started = false;
+  private rootDocument: Document | null = null;
 
   public constructor(input?: {
     settingsRepository?: SettingsRepository;
@@ -201,6 +202,19 @@ export class IncomingTranslationController {
   public async start(rootDocument: Document = document): Promise<void> {
     if (this.started) {
       return;
+    }
+
+    this.rootDocument = rootDocument;
+    if (typeof chrome !== "undefined" && chrome.runtime?.onMessage) {
+      chrome.runtime.onMessage.addListener((message) => {
+        const parsed = extensionMessageSchema.safeParse(message);
+        if (!parsed.success || parsed.data.type !== "settings.updated") {
+          return false;
+        }
+
+        void this.handleSettingsUpdated(parsed.data.payload);
+        return false;
+      });
     }
 
     this.settings = await this.settingsRepository.load();
@@ -279,6 +293,43 @@ export class IncomingTranslationController {
       state === "disabled" || state === "updated" ? state : "incompatible"
     );
     this.records.clear();
+  }
+
+  private async handleSettingsUpdated(settings: UserSettings): Promise<void> {
+    const previousMode = this.settings?.incomingMode ?? "off";
+    this.settings = settings;
+
+    if (!settings.enabled || settings.onboardingStatus !== "complete" || settings.incomingMode === "off") {
+      this.handleCompatibilityChange("disabled");
+      this.observer = null;
+      return;
+    }
+
+    if (!this.observer && this.rootDocument) {
+      this.observer = createWhatsAppObserver(
+        {
+          processRoot: (root) => {
+            void this.processRoot(root);
+          },
+          handleCompatibilityChange: (state) => {
+            this.handleCompatibilityChange(state);
+          },
+          cleanup: () => {
+            this.cleanup.cleanupForCompatibility("incompatible");
+            this.records.clear();
+          }
+        },
+        this.rootDocument
+      );
+      this.observer.start();
+      return;
+    }
+
+    if (previousMode !== settings.incomingMode && this.rootDocument) {
+      this.cleanup.cleanupForCompatibility("updated");
+      this.records.clear();
+      await this.processRoot(this.rootDocument);
+    }
   }
 
   private markRecordsOutsideActiveChatAsStale(): void {

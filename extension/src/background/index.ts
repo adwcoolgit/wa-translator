@@ -1,5 +1,6 @@
 import { CompanionLifecycleService } from "./companionLifecycleService";
 import { registerManualCommandHandler } from "./manualCommandHandler";
+import { registerSettingsBroadcastService } from "./settingsBroadcastService";
 import { TranslationRouter } from "./translationRouter";
 import { createBlockedTranslationResponse, getTranslationRequestBlockReason } from "./translationRequestPolicy";
 import { OnboardingGate, registerOnboardingGate } from "./onboardingGate";
@@ -14,6 +15,7 @@ const translationRouter = new TranslationRouter();
 
 registerOnboardingGate(onboardingGate);
 registerManualCommandHandler();
+registerSettingsBroadcastService();
 
 if (typeof chrome !== "undefined" && chrome.runtime?.onMessage) {
   chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
