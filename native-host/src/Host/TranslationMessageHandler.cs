@@ -40,12 +40,12 @@ public sealed class TranslationMessageHandler
 
         if (request.SourceText.Length > 12_000)
         {
-            return CreateErrorResult(request, provider, "INPUT_TOO_LARGE", "dismiss", startedAt);
+            return CreateErrorResult(request, provider, new ProviderErrorNormalizer().NormalizeInputTooLarge(), startedAt);
         }
 
         if (!TryResolveExecutable(provider, out var executablePath))
         {
-            return CreateErrorResult(request, provider, "PROVIDER_NOT_FOUND", "selectExecutable", startedAt);
+            return CreateErrorResult(request, provider, new ProviderErrorNormalizer().NormalizeMissingExecutable(), startedAt);
         }
 
         cancellationToken.ThrowIfCancellationRequested();
@@ -76,7 +76,7 @@ public sealed class TranslationMessageHandler
             var execution = probeRunner(probeCommand, cancellationToken);
             if (execution.TimedOut)
             {
-                return CreateErrorResult(request, provider, "PROVIDER_TIMEOUT", "retry", startedAt);
+                return CreateErrorResult(request, provider, new ProviderErrorNormalizer().NormalizeTimeout(), startedAt);
             }
 
             if (execution.ExitCode != 0)
@@ -312,23 +312,8 @@ Input JSON:
         long startedAt)
     {
         var combinedOutput = $"{execution.StandardError}\n{execution.StandardOutput}\n{execution.OutputText}".Trim();
-
-        if (ContainsAny(combinedOutput, "sign in", "sign-in", "log in", "login", "authenticate", "authentication"))
-        {
-            return CreateErrorResult(request, provider, "PROVIDER_AUTH_REQUIRED", "signInWithCli", startedAt);
-        }
-
-        if (ContainsAny(combinedOutput, "rate limit", "too many requests", "quota", "overloaded"))
-        {
-            return CreateErrorResult(request, provider, "PROVIDER_RATE_LIMIT", "retry", startedAt);
-        }
-
-        if (ContainsAny(combinedOutput, "access is denied", "permission denied", "sandbox", "unsafe"))
-        {
-            return CreateErrorResult(request, provider, "PROVIDER_UNSAFE_CONFIGURATION", "openDiagnostics", startedAt);
-        }
-
-        return CreateErrorResult(request, provider, "PROVIDER_INVALID_OUTPUT", "openDiagnostics", startedAt);
+        var normalizedError = new ProviderErrorNormalizer().NormalizeExecutionFailure(combinedOutput);
+        return CreateErrorResult(request, provider, normalizedError, startedAt);
     }
 
     private static ProviderHealthCheckResult CreateFailureResultFromException(
@@ -341,7 +326,7 @@ Input JSON:
 
         if (message.Contains("cannot find") || message.Contains("not found"))
         {
-            return CreateErrorResult(request, provider, "PROVIDER_NOT_FOUND", "selectExecutable", startedAt);
+            return CreateErrorResult(request, provider, new ProviderErrorNormalizer().NormalizeMissingExecutable(), startedAt);
         }
 
         if (message.Contains("access is denied") || message.Contains("permission denied"))
@@ -355,8 +340,7 @@ Input JSON:
     private static ProviderHealthCheckResult CreateErrorResult(
         TranslationExecutionRequest request,
         string provider,
-        string errorCode,
-        string recoveryAction,
+        ProviderHealthError error,
         long startedAt)
     {
         return new ProviderHealthCheckResult(
@@ -367,12 +351,25 @@ Input JSON:
             DetectedSourceLanguage: null,
             Provider: provider,
             LatencyMs: ToLatency(startedAt),
-            Error: new ProviderHealthError(
-                Code: errorCode,
-                Component: errorCode is "INPUT_TOO_LARGE" ? "extension" : "provider",
-                Severity: errorCode is "PROVIDER_TIMEOUT" or "PROVIDER_RATE_LIMIT" or "INPUT_TOO_LARGE" ? "warning" : "blocking",
-                RecoveryAction: recoveryAction,
-                SupportCode: errorCode));
+            Error: error);
+    }
+
+    private static ProviderHealthCheckResult CreateErrorResult(
+        TranslationExecutionRequest request,
+        string provider,
+        string errorCode,
+        string recoveryAction,
+        long startedAt)
+    {
+        var severity = errorCode is "PROVIDER_TIMEOUT" or "PROVIDER_RATE_LIMIT" or "INPUT_TOO_LARGE"
+            ? "warning"
+            : "blocking";
+        var component = errorCode is "INPUT_TOO_LARGE" ? "extension" : "provider";
+        return CreateErrorResult(
+            request,
+            provider,
+            new ProviderErrorNormalizer().CreateError(errorCode, recoveryAction, component, severity),
+            startedAt);
     }
 
     private static int ToLatency(long startedAt)

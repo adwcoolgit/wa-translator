@@ -1,9 +1,10 @@
 import React from "react";
 import { createRoot, type Root } from "react-dom/client";
 
-import { buildTranslationActionState, runTranslationAction, type TranslationActionHandlers } from "./translationActions";
-import type { SanitizedTranslationError } from "../../shared/contracts/translation";
 import type { TranslationRequestState } from "../../domain/translation/requestState";
+import { RecoveryActionPanel } from "../../shared/components/RecoveryActionPanel";
+import type { SanitizedTranslationError } from "../../shared/contracts/translation";
+import { buildTranslationActionState, runTranslationAction, type TranslationActionHandlers } from "./translationActions";
 
 export interface TranslationPopoverProps {
   anchorId: string;
@@ -77,7 +78,11 @@ export function TranslationPopover({
       </header>
       <p aria-live="polite">{describeState(requestState, error)}</p>
       {translation ? <p data-testid="translation-text">{translation}</p> : null}
-      {error ? <p data-testid="translation-error">{error.recoveryAction}</p> : null}
+      {error ? (
+        <div data-testid="translation-error">
+          <RecoveryActionPanel compact error={error} />
+        </div>
+      ) : null}
       <div className="wa-translator-popover-actions">
         {actionState.canCopy ? (
           <button onClick={() => void runTranslationAction(actions.onCopy)} type="button">

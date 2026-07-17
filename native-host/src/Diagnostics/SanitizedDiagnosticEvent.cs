@@ -1,6 +1,6 @@
 namespace WaTranslator.Diagnostics;
 
-internal sealed record SanitizedDiagnosticEvent(
+public sealed record SanitizedDiagnosticEvent(
     string EventType,
     DateTimeOffset Timestamp,
     IReadOnlyDictionary<string, string?> Properties,

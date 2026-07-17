@@ -6,6 +6,7 @@ import { createTranslationQueue, QueueDispositionError, type TranslationQueue } 
 import { createSettingsRepository, type SettingsRepository } from "../../domain/settings/settingsRepository";
 import type { UserSettings } from "../../domain/settings/userSettings";
 import { createIncomingTranslationDiagnosticsRecorder, type IncomingTranslationDiagnosticsRecorder } from "../../diagnostics/incomingTranslationDiagnostics";
+import { createRecoveryDiagnosticsRecorder, type RecoveryDiagnosticsRecorder } from "../../diagnostics/recoveryDiagnostics";
 import { sanitizedErrorCodeSchema } from "../../shared/contracts/diagnostics";
 import { extensionMessageSchema, createExtensionMessage, parseExtensionMessage } from "../../shared/messaging/extensionMessageBus";
 import { SessionTranslationCache } from "../../shared/storage/sessionTranslationCache";
@@ -17,6 +18,7 @@ import {
   type TranslationResponse
 } from "../../shared/contracts/translation";
 import type { AdapterCompatibilityState, DomAnchorValidity } from "../../shared/contracts/domAdapter";
+import { mountDomCompatibilityBanner, type DomCompatibilityBannerHandle } from "../rendering/domCompatibilityBanner";
 import { createTranslationContainer, type TranslationContainerHandle, type TranslationContainerModel } from "../rendering/translationContainer";
 import { copyTranslationToClipboard } from "../rendering/translationActions";
 import { createTranslationCleanup, type TranslationCleanup } from "./translationCleanup";
@@ -173,6 +175,7 @@ export class IncomingTranslationController {
   private readonly runtimeGateway: TranslationRuntimeGateway;
   private readonly registry: DomAnchorRegistry;
   private readonly queue: TranslationQueue<TranslationTaskResult>;
+  private readonly recoveryDiagnostics: RecoveryDiagnosticsRecorder;
   private readonly fingerprintService = createMessageFingerprintService();
   private readonly records = new Map<string, TranslationUiRecord>();
   private readonly cleanup: TranslationCleanup;
@@ -181,10 +184,12 @@ export class IncomingTranslationController {
   private activeChatScope = "active-chat";
   private started = false;
   private rootDocument: Document | null = null;
+  private compatibilityBanner: DomCompatibilityBannerHandle | null = null;
 
   public constructor(input?: {
     settingsRepository?: SettingsRepository;
     diagnostics?: IncomingTranslationDiagnosticsRecorder;
+    recoveryDiagnostics?: RecoveryDiagnosticsRecorder;
     sessionCache?: SessionTranslationCache;
     runtimeGateway?: TranslationRuntimeGateway;
     registry?: DomAnchorRegistry;
@@ -192,6 +197,7 @@ export class IncomingTranslationController {
   }) {
     this.settingsRepository = input?.settingsRepository ?? createSettingsRepository();
     this.diagnostics = input?.diagnostics ?? createIncomingTranslationDiagnosticsRecorder();
+    this.recoveryDiagnostics = input?.recoveryDiagnostics ?? createRecoveryDiagnosticsRecorder();
     this.sessionCache = input?.sessionCache ?? new SessionTranslationCache();
     this.runtimeGateway = input?.runtimeGateway ?? createTranslationRuntimeGateway();
     this.registry = input?.registry ?? createDomAnchorRegistry();
@@ -246,6 +252,8 @@ export class IncomingTranslationController {
 
   public stop(): void {
     this.observer?.stop();
+    this.compatibilityBanner?.unmount();
+    this.compatibilityBanner = null;
     this.cleanup.cleanupForDisposal();
     this.records.clear();
     this.started = false;
@@ -284,10 +292,35 @@ export class IncomingTranslationController {
     this.registry.setCompatibilityState(state);
 
     if (state === "compatible") {
+      this.compatibilityBanner?.unmount();
+      this.compatibilityBanner = null;
       return;
     }
 
     this.diagnostics.recordCompatibilityState(state);
+    const error = createSanitizedError("DOM_ADAPTER_INCOMPATIBLE");
+    this.recoveryDiagnostics.recordRecoveryShown("incomingBanner", error);
+
+    if (this.rootDocument?.body) {
+      if (!this.compatibilityBanner) {
+        const container = this.rootDocument.createElement("div");
+        this.rootDocument.body.prepend(container);
+        this.compatibilityBanner = mountDomCompatibilityBanner(container, {
+          state: state === "degraded" ? "degraded" : "incompatible",
+          onAction: (action: import("../../shared/contracts/diagnostics").RecoveryAction) => {
+            this.recoveryDiagnostics.recordRecoveryAction("incomingBanner", error, action);
+          }
+        });
+      } else {
+        this.compatibilityBanner.update({
+          state: state === "degraded" ? "degraded" : "incompatible",
+          onAction: (action: import("../../shared/contracts/diagnostics").RecoveryAction) => {
+            this.recoveryDiagnostics.recordRecoveryAction("incomingBanner", error, action);
+          }
+        });
+      }
+    }
+
     this.observer?.stop();
     this.cleanup.cleanupForCompatibility(
       state === "disabled" || state === "updated" ? state : "incompatible"
@@ -635,3 +668,4 @@ export class IncomingTranslationController {
 export const createIncomingTranslationController = (
   input?: ConstructorParameters<typeof IncomingTranslationController>[0]
 ): IncomingTranslationController => new IncomingTranslationController(input);
+
