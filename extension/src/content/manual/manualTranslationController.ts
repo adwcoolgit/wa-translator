@@ -308,6 +308,7 @@ export class ManualTranslationController {
   }
 
   private async handleStartMessage(_message: ManualPreviewStartMessage): Promise<void> {
+    void _message;
     await this.requestManualTranslation();
   }
 
@@ -499,5 +500,4 @@ export class ManualTranslationController {
 export const createManualTranslationController = (
   input?: ConstructorParameters<typeof ManualTranslationController>[0]
 ): ManualTranslationController => new ManualTranslationController(input);
-
 

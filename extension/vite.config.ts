@@ -6,6 +6,14 @@ import react from "@vitejs/plugin-react";
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
 export default defineConfig({
+  resolve: {
+    alias: {
+      react: resolve(__dirname, "node_modules/react"),
+      "react-dom": resolve(__dirname, "node_modules/react-dom"),
+      "@testing-library/react": resolve(__dirname, "node_modules/@testing-library/react"),
+      "@testing-library/jest-dom": resolve(__dirname, "node_modules/@testing-library/jest-dom")
+    }
+  },
   plugins: [react()],
   publicDir: "public",
   server: {
@@ -20,8 +28,11 @@ export default defineConfig({
     include: [
       "tests/**/*.test.ts",
       "tests/**/*.test.tsx",
+      "../tests/accessibility/**/*.test.ts",
+      "../tests/accessibility/**/*.test.tsx",
       "../tests/contract/**/*.test.ts",
       "../tests/fixtures/**/*.test.ts",
+      "../tests/performance/**/*.benchmark.ts",
       "../tests/security/**/*.test.ts"
     ]
   },
@@ -46,3 +57,4 @@ export default defineConfig({
     }
   }
 });
+
