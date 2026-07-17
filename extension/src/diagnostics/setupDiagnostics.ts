@@ -1,4 +1,5 @@
-import { createDiagnosticsCollector, type DiagnosticsCollector } from "./diagnosticsCollector";
+import type { DiagnosticsCollector } from "./diagnosticsCollector";
+import { getRuntimeDiagnosticsCollector } from "./runtimeCollector";
 import type { ProviderHealth } from "../domain/provider/providerHealth";
 import type { DiagnosticsEvent } from "../shared/contracts/diagnostics";
 import type { NativeLifecycleResult } from "../shared/contracts/nativeMessaging";
@@ -27,7 +28,7 @@ export interface SetupDiagnosticsRecorder {
 }
 
 export const createSetupDiagnosticsRecorder = (
-  collector: DiagnosticsCollector = createDiagnosticsCollector()
+  collector: DiagnosticsCollector = getRuntimeDiagnosticsCollector()
 ): SetupDiagnosticsRecorder => ({
   collector,
   recordSetupStarted(step) {

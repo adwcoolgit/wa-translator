@@ -2,7 +2,10 @@ import React, { startTransition, useEffect, useEffectEvent, useMemo, useState } 
 import { createRoot } from "react-dom/client";
 
 import { CompanionLifecycleService } from "../background/companionLifecycleService";
+import { createDiagnosticsExportService } from "../diagnostics/diagnosticsExportService";
+import { createRecoveryDiagnosticsRecorder } from "../diagnostics/recoveryDiagnostics";
 import { createUnknownProviderHealth, type ProviderHealth } from "../domain/provider/providerHealth";
+import { createLocalDataActions } from "../domain/settings/localDataActions";
 import {
   buildShortcutStatusModel,
   buildValidationMessages,
@@ -17,6 +20,9 @@ import { parseOptionsSectionFromHash } from "./optionsSectionRouting";
 
 const settingsRepository = createSettingsRepository();
 const companionLifecycleService = new CompanionLifecycleService();
+const diagnosticsExportService = createDiagnosticsExportService();
+const localDataActions = createLocalDataActions(settingsRepository);
+const recoveryDiagnostics = createRecoveryDiagnosticsRecorder();
 
 const loadShortcutStatus = async (): Promise<ShortcutStatusModel> =>
   await new Promise<ShortcutStatusModel>((resolve) => {
@@ -45,6 +51,9 @@ function App() {
   const [saveState, setSaveState] = useState<
     "clean" | "dirty" | "saving" | "saved" | "validationError" | "saveFailed"
   >("clean");
+  const [diagnosticsPreview, setDiagnosticsPreview] = useState<string | null>(null);
+  const [diagnosticsStatusMessage, setDiagnosticsStatusMessage] = useState<string | null>(null);
+  const [localDataStatusMessage, setLocalDataStatusMessage] = useState<string | null>(null);
 
   const validationMessages = useMemo(
     () => buildValidationMessages(draftSettings),
@@ -143,12 +152,37 @@ function App() {
   return (
     <OptionsApp
       activeSection={activeSection}
+      diagnosticsPreview={diagnosticsPreview}
+      diagnosticsStatusMessage={diagnosticsStatusMessage}
       draftSettings={draftSettings}
+      localDataStatusMessage={localDataStatusMessage}
       onCancel={() => {
         startTransition(() => {
           setDraftSettings(settings);
           setSaveState("clean");
         });
+      }}
+      onClearLocalData={() => {
+        void (async () => {
+          const result = await localDataActions.clearLocalData();
+          recoveryDiagnostics.recordPrivacyAction("clearLocalData");
+          startTransition(() => {
+            setLocalDataStatusMessage(result.statusMessage);
+          });
+        })();
+      }}
+      onDownloadDiagnosticsExport={() => {
+        if (!diagnosticsPreview || typeof document === "undefined") {
+          return;
+        }
+
+        const blob = new Blob([diagnosticsPreview], { type: "application/json" });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement("a");
+        link.href = url;
+        link.download = `wa-translator-diagnostics-${Date.now()}.json`;
+        link.click();
+        URL.revokeObjectURL(url);
       }}
       onFieldChange={(field, value) => {
         startTransition(() => {
@@ -161,6 +195,37 @@ function App() {
       }}
       onOpenShortcutSettings={() => {
         window.open("chrome://extensions/shortcuts", "_blank", "noopener,noreferrer");
+      }}
+      onPrepareDiagnosticsExport={() => {
+        void (async () => {
+          const lifecycle = await companionLifecycleService.queryLifecycle();
+          const nextPreview = diagnosticsExportService.serialize(draftSettings, providerHealth, {
+            nativeHostVersion: lifecycle.hostVersion,
+            protocolVersion: lifecycle.protocolVersion
+          });
+          recoveryDiagnostics.recordPrivacyAction("exportDiagnosticsPrepared");
+          startTransition(() => {
+            setDiagnosticsPreview(nextPreview);
+            setDiagnosticsStatusMessage("Diagnostics export prepared for review.");
+          });
+        })();
+      }}
+      onResetSettings={() => {
+        void (async () => {
+          const result = await localDataActions.resetSettings();
+          const nextProviderHealth = await companionLifecycleService.runSyntheticProviderHealthCheck(
+            result.settings.providerActive,
+            result.settings
+          );
+          recoveryDiagnostics.recordPrivacyAction("resetSettings");
+          startTransition(() => {
+            setSettings(result.settings);
+            setDraftSettings(result.settings);
+            setProviderHealth(nextProviderHealth);
+            setSaveState("clean");
+            setLocalDataStatusMessage(result.statusMessage);
+          });
+        })();
       }}
       onSave={() => {
         void saveSettings();
@@ -183,3 +248,4 @@ const root = document.getElementById("root");
 if (root) {
   createRoot(root).render(<App />);
 }
+

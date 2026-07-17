@@ -1,4 +1,5 @@
-import { createDiagnosticsCollector, type DiagnosticsCollector } from "./diagnosticsCollector";
+import type { DiagnosticsCollector } from "./diagnosticsCollector";
+import { getRuntimeDiagnosticsCollector } from "./runtimeCollector";
 import type { RequestPriority } from "../domain/translation/requestState";
 import type { DiagnosticsEvent, SanitizedError } from "../shared/contracts/diagnostics";
 import type { AdapterCompatibilityState } from "../shared/contracts/domAdapter";
@@ -41,7 +42,7 @@ export interface IncomingTranslationDiagnosticsRecorder {
 }
 
 export const createIncomingTranslationDiagnosticsRecorder = (
-  collector: DiagnosticsCollector = createDiagnosticsCollector()
+  collector: DiagnosticsCollector = getRuntimeDiagnosticsCollector()
 ): IncomingTranslationDiagnosticsRecorder => ({
   collector,
   recordTranslationRequested(input) {

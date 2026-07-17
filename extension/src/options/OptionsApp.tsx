@@ -27,11 +27,18 @@ export interface OptionsAppProps {
   activeSection: OptionsSectionId;
   shortcutStatus: ShortcutStatusModel;
   validationMessages: SettingsValidationMessages;
+  diagnosticsPreview: string | null;
+  diagnosticsStatusMessage: string | null;
+  localDataStatusMessage: string | null;
   onFieldChange: <K extends keyof UserSettings>(field: K, value: UserSettings[K]) => void;
   onSectionChange: (section: OptionsSectionId) => void;
   onSave: () => void;
   onCancel: () => void;
   onOpenShortcutSettings?: () => void;
+  onPrepareDiagnosticsExport?: () => void;
+  onDownloadDiagnosticsExport?: () => void;
+  onClearLocalData?: () => void;
+  onResetSettings?: () => void;
 }
 
 const editableSections: OptionsSectionId[] = [
@@ -49,11 +56,18 @@ export function OptionsApp({
   activeSection,
   shortcutStatus,
   validationMessages,
+  diagnosticsPreview,
+  diagnosticsStatusMessage,
+  localDataStatusMessage,
   onFieldChange,
   onSectionChange,
   onSave,
   onCancel,
-  onOpenShortcutSettings
+  onOpenShortcutSettings,
+  onPrepareDiagnosticsExport,
+  onDownloadDiagnosticsExport,
+  onClearLocalData,
+  onResetSettings
 }: OptionsAppProps) {
   const optionsState = buildOptionsState({
     activeSection,
@@ -273,8 +287,15 @@ export function OptionsApp({
           {activeSection === "privacy" || activeSection === "diagnostics" ? (
             <PrivacyDiagnosticsPage
               activeSection={activeSection}
+              diagnosticsPreview={diagnosticsPreview}
+              diagnosticsStatusMessage={diagnosticsStatusMessage}
+              localDataStatusMessage={localDataStatusMessage}
+              onClearLocalData={onClearLocalData}
+              onDownloadDiagnosticsExport={onDownloadDiagnosticsExport}
               onFieldChange={onFieldChange}
+              onPrepareDiagnosticsExport={onPrepareDiagnosticsExport}
               providerHealth={providerHealth}
+              onResetSettings={onResetSettings}
               settings={draftSettings}
               shortcutStatus={shortcutStatus}
               validationMessages={validationMessages}
@@ -284,8 +305,15 @@ export function OptionsApp({
           {activeSection === "advanced" && isAdvancedSettingsVisible() ? (
             <PrivacyDiagnosticsPage
               activeSection="advanced"
+              diagnosticsPreview={diagnosticsPreview}
+              diagnosticsStatusMessage={diagnosticsStatusMessage}
+              localDataStatusMessage={localDataStatusMessage}
+              onClearLocalData={onClearLocalData}
+              onDownloadDiagnosticsExport={onDownloadDiagnosticsExport}
               onFieldChange={onFieldChange}
+              onPrepareDiagnosticsExport={onPrepareDiagnosticsExport}
               providerHealth={providerHealth}
+              onResetSettings={onResetSettings}
               settings={draftSettings}
               shortcutStatus={shortcutStatus}
               validationMessages={validationMessages}

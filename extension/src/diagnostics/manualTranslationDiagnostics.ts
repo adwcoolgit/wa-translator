@@ -1,4 +1,5 @@
-import { createDiagnosticsCollector, type DiagnosticsCollector } from "./diagnosticsCollector";
+import type { DiagnosticsCollector } from "./diagnosticsCollector";
+import { getRuntimeDiagnosticsCollector } from "./runtimeCollector";
 import type { DiagnosticsEvent, SanitizedError } from "../shared/contracts/diagnostics";
 import type { ManualTargetSnapshot } from "../domain/manual/manualTargetSnapshot";
 import type { UserSettings } from "../domain/settings/userSettings";
@@ -46,7 +47,7 @@ export interface ManualTranslationDiagnosticsRecorder {
 }
 
 export const createManualTranslationDiagnosticsRecorder = (
-  collector: DiagnosticsCollector = createDiagnosticsCollector()
+  collector: DiagnosticsCollector = getRuntimeDiagnosticsCollector()
 ): ManualTranslationDiagnosticsRecorder => ({
   collector,
   recordPreviewOpened(input) {

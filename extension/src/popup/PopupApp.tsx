@@ -10,6 +10,8 @@ import {
   type ShortcutStatusModel
 } from "../domain/settings/settingsViewModel";
 import { type UserSettings } from "../domain/settings/userSettings";
+import type { RecoveryAction } from "../shared/contracts/diagnostics";
+import { RecoveryActionPanel } from "../shared/components/RecoveryActionPanel";
 import { en } from "../shared/i18n/en";
 import { IncomingModeSelector } from "./components/IncomingModeSelector";
 import { LanguageStyleControls } from "./components/LanguageStyleControls";
@@ -42,6 +44,7 @@ export interface PopupAppProps {
   onTargetLanguageChange?: (value: UserSettings["targetLanguage"]) => void;
   onStyleChange?: (value: UserSettings["styleId"]) => void;
   onIncomingModeChange?: (value: UserSettings["incomingMode"]) => void;
+  onRecoveryAction?: (action: RecoveryAction) => void;
 }
 
 export function PopupApp({
@@ -52,7 +55,8 @@ export function PopupApp({
   onToggleEnabled,
   onTargetLanguageChange,
   onStyleChange,
-  onIncomingModeChange
+  onIncomingModeChange,
+  onRecoveryAction
 }: PopupAppProps) {
   if (loading) {
     return <main data-surface="popup">{en.popup.loading}</main>;
@@ -155,7 +159,19 @@ export function PopupApp({
         <p>{en.popup.manualShortcutHelp}</p>
       </section>
 
-      {providerHealth.lastSanitizedError ? <p>{en.popup.diagnosticsHint}</p> : null}
+      {providerHealth.lastSanitizedError ? (
+        <section aria-labelledby="popup-recovery-title">
+          <h2 id="popup-recovery-title">Recovery</h2>
+          <p>{en.popup.diagnosticsHint}</p>
+          <RecoveryActionPanel
+            compact
+            error={providerHealth.lastSanitizedError}
+            onAction={(action) => {
+              onRecoveryAction?.(action);
+            }}
+          />
+        </section>
+      ) : null}
 
       <button onClick={() => void openOptions()} type="button">
         {en.popup.openSettings}

@@ -1,9 +1,23 @@
-﻿<Project Sdk="Microsoft.NET.Sdk">
+<Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
     <TargetFramework>net8.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <RootNamespace>WaTranslator.NativeHost.InstallerTests</RootNamespace>
     <AssemblyName>WaTranslator.NativeHost.InstallerTests</AssemblyName>
+    <IsPackable>false</IsPackable>
   </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.11.1" />
+    <PackageReference Include="xunit" Version="2.9.0" />
+    <PackageReference Include="xunit.runner.visualstudio" Version="2.8.2">
+      <PrivateAssets>all</PrivateAssets>
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+    </PackageReference>
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\Host\WaTranslator.Host.csproj" />
+    <ProjectReference Include="..\..\src\Diagnostics\WaTranslator.Diagnostics.csproj" />
+    <ProjectReference Include="..\..\src\Security\WaTranslator.Security.csproj" />
+  </ItemGroup>
 </Project>

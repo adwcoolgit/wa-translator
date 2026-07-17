@@ -15,7 +15,10 @@ describe("OptionsApp settings flows", () => {
     render(
       <OptionsApp
         activeSection="translation"
+        diagnosticsPreview={null}
+        diagnosticsStatusMessage={null}
         draftSettings={defaultUserSettings}
+        localDataStatusMessage={null}
         onCancel={vi.fn()}
         onFieldChange={onFieldChange}
         onSave={onSave}
@@ -40,10 +43,13 @@ describe("OptionsApp settings flows", () => {
     render(
       <OptionsApp
         activeSection="provider"
+        diagnosticsPreview={null}
+        diagnosticsStatusMessage={null}
         draftSettings={{
           ...defaultUserSettings,
           providerTimeoutSeconds: 0
         }}
+        localDataStatusMessage={null}
         onCancel={vi.fn()}
         onFieldChange={vi.fn()}
         onOpenShortcutSettings={vi.fn()}

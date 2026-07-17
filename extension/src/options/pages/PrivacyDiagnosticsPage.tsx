@@ -7,6 +7,7 @@ import type {
   ShortcutStatusModel
 } from "../../domain/settings/settingsViewModel";
 import type { UserSettings } from "../../domain/settings/userSettings";
+import { disclaimerCopy } from "../../shared/i18n/disclaimerCopy";
 import { en } from "../../shared/i18n/en";
 
 export interface PrivacyDiagnosticsPageProps {
@@ -15,7 +16,14 @@ export interface PrivacyDiagnosticsPageProps {
   settings: UserSettings;
   shortcutStatus: ShortcutStatusModel;
   validationMessages: SettingsValidationMessages;
+  diagnosticsPreview: string | null;
+  diagnosticsStatusMessage: string | null;
+  localDataStatusMessage: string | null;
   onFieldChange: <K extends keyof UserSettings>(field: K, value: UserSettings[K]) => void;
+  onPrepareDiagnosticsExport?: () => void;
+  onDownloadDiagnosticsExport?: () => void;
+  onClearLocalData?: () => void;
+  onResetSettings?: () => void;
 }
 
 export function PrivacyDiagnosticsPage({
@@ -24,7 +32,14 @@ export function PrivacyDiagnosticsPage({
   settings,
   shortcutStatus,
   validationMessages,
-  onFieldChange
+  diagnosticsPreview,
+  diagnosticsStatusMessage,
+  localDataStatusMessage,
+  onFieldChange,
+  onPrepareDiagnosticsExport,
+  onDownloadDiagnosticsExport,
+  onClearLocalData,
+  onResetSettings
 }: PrivacyDiagnosticsPageProps) {
   if (activeSection === "advanced") {
     return (
@@ -54,7 +69,24 @@ export function PrivacyDiagnosticsPage({
             <dd>{settings.telemetryEnabled ? "Enabled" : "Disabled"}</dd>
           </div>
         </dl>
-        <p>{en.options.diagnosticsPlaceholder}</p>
+        <p>{disclaimerCopy.about}</p>
+        <div>
+          <button onClick={onPrepareDiagnosticsExport} type="button">
+            Prepare diagnostics export
+          </button>
+          <button disabled={!diagnosticsPreview} onClick={onDownloadDiagnosticsExport} type="button">
+            Download export
+          </button>
+        </div>
+        {diagnosticsStatusMessage ? <p role="status">{diagnosticsStatusMessage}</p> : null}
+        {diagnosticsPreview ? (
+          <label>
+            Diagnostics preview
+            <textarea aria-label="Diagnostics preview" readOnly rows={10} value={diagnosticsPreview} />
+          </label>
+        ) : (
+          <p>{en.options.diagnosticsPlaceholder}</p>
+        )}
       </section>
     );
   }
@@ -64,6 +96,7 @@ export function PrivacyDiagnosticsPage({
       <h2 id="privacy-settings-title">{en.options.sections.privacy}</h2>
       <p>{en.options.privacyDescription}</p>
       <p>{en.options.privacyPromise}</p>
+      <p>{disclaimerCopy.privacy}</p>
       <div className="options-field-grid">
         <label>
           <input
@@ -115,6 +148,20 @@ export function PrivacyDiagnosticsPage({
           {en.options.telemetryLabel}
         </label>
       </div>
+
+      <section aria-labelledby="privacy-data-actions-title">
+        <h3 id="privacy-data-actions-title">Local data actions</h3>
+        <p>Clear session-only cache and diagnostics without changing saved settings, or reset everything to defaults.</p>
+        <div>
+          <button onClick={onClearLocalData} type="button">
+            Clear local data
+          </button>
+          <button onClick={onResetSettings} type="button">
+            Reset settings
+          </button>
+        </div>
+        {localDataStatusMessage ? <p role="status">{localDataStatusMessage}</p> : null}
+      </section>
     </section>
   );
 }
