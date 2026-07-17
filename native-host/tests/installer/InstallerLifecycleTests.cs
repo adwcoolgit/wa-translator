@@ -82,6 +82,43 @@ public sealed class InstallerLifecycleTests
     }
 
     [Fact]
+    public void SetupServiceReplacesExistingHostDirectoryWithoutLeavingStaleFiles()
+    {
+        var registry = new FakeNativeHostRegistry();
+        var registration = new WindowsNativeHostRegistration(registry);
+        var service = new NativeHostSetupService(registration);
+        var tempRoot = Path.Combine(Path.GetTempPath(), $"wa-translator-setup-upgrade-{Guid.NewGuid():N}");
+        var originalSourceDirectory = Path.Combine(tempRoot, "source-v1");
+        var upgradedSourceDirectory = Path.Combine(tempRoot, "source-v2");
+        var installRoot = Path.Combine(tempRoot, "install");
+        Directory.CreateDirectory(originalSourceDirectory);
+        Directory.CreateDirectory(upgradedSourceDirectory);
+        File.WriteAllText(Path.Combine(originalSourceDirectory, "WaTranslator.Host.exe"), "host-exe-v1");
+        File.WriteAllText(Path.Combine(originalSourceDirectory, "legacy.txt"), "legacy");
+        File.WriteAllText(Path.Combine(upgradedSourceDirectory, "WaTranslator.Host.exe"), "host-exe-v2");
+        File.WriteAllText(Path.Combine(upgradedSourceDirectory, "WaTranslator.Host.dll"), "host-dll-v2");
+
+        try
+        {
+            var initialInstall = service.Install(originalSourceDirectory, installRoot, "extension-allowed");
+            Assert.True(File.Exists(Path.Combine(initialInstall.HostInstallDirectory, "legacy.txt")));
+
+            var upgradedInstall = service.Install(upgradedSourceDirectory, installRoot, "extension-allowed");
+
+            Assert.False(File.Exists(Path.Combine(upgradedInstall.HostInstallDirectory, "legacy.txt")));
+            Assert.Equal("host-exe-v2", File.ReadAllText(upgradedInstall.InstalledHostExecutablePath));
+            Assert.True(File.Exists(Path.Combine(upgradedInstall.HostInstallDirectory, "WaTranslator.Host.dll")));
+        }
+        finally
+        {
+            if (Directory.Exists(tempRoot))
+            {
+                Directory.Delete(tempRoot, recursive: true);
+            }
+        }
+    }
+
+    [Fact]
     public void SetupServiceRejectsMissingHostExecutable()
     {
         var registry = new FakeNativeHostRegistry();
@@ -106,7 +143,7 @@ public sealed class InstallerLifecycleTests
     }
 
     [Fact]
-    public void SetupServiceUninstallRemovesManifestAndRegistration()
+    public void SetupServiceUninstallRemovesManifestRegistrationAndHostPayload()
     {
         var registry = new FakeNativeHostRegistry();
         var registration = new WindowsNativeHostRegistration(registry);
@@ -121,11 +158,13 @@ public sealed class InstallerLifecycleTests
         {
             var installResult = service.Install(sourceDirectory, installRoot, "extension-allowed");
             Assert.True(File.Exists(installResult.ManifestPath));
+            Assert.True(Directory.Exists(installResult.HostInstallDirectory));
 
             var uninstallResult = service.Uninstall(installRoot);
 
             Assert.Equal(installResult.ManifestPath, uninstallResult.ManifestPath);
             Assert.False(File.Exists(installResult.ManifestPath));
+            Assert.False(Directory.Exists(installResult.HostInstallDirectory));
             Assert.Equal(WindowsNativeHostRegistration.RegistryKeyPath, registry.LastDeletedKeyPath);
         }
         finally
@@ -202,3 +241,4 @@ public sealed class InstallerLifecycleTests
         }
     }
 }
+

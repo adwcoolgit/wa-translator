@@ -179,8 +179,8 @@ cd ..
 Output penting setelah build:
 
 - native host: `native-host/src/Host/bin/Release/net8.0/`
-- setup executable project: `native-host/src/Setup/bin/Debug/net8.0/` saat dibuild lewat test/build lokal
-- bundle setup lokal siap pakai: `artifacts/native-host/setup/`
+- setup executable project: `native-host/src/Setup/bin/Release/net8.0/`
+- bundle setup lokal siap pakai: `artifacts/native-host/setup/` bila Anda membuat packaging lokal sendiri
 
 #### 5. Load extension sebagai unpacked extension di Chrome
 
@@ -196,12 +196,13 @@ Extension ID ini diperlukan untuk setup executable dan manifest Native Messaging
 
 Executable setup yang bisa dipakai:
 
-- `artifacts\native-host\setup\WaTranslator.Setup.exe`
+- `native-host\src\Setup\bin\Release\net8.0\WaTranslator.Setup.exe`
+- `artifacts\native-host\setup\WaTranslator.Setup.exe` bila Anda sudah membuat bundle lokal sendiri
 
 Cara pakai default:
 
 ```powershell
-artifacts\native-host\setup\WaTranslator.Setup.exe install --extension-id <CHROME_EXTENSION_ID>
+native-host\src\Setup\bin\Release\net8.0\WaTranslator.Setup.exe install --extension-id <CHROME_EXTENSION_ID>
 ```
 
 Perintah ini akan:
@@ -213,16 +214,17 @@ Perintah ini akan:
 Opsi penting yang didukung:
 
 ```powershell
-artifacts\native-host\setup\WaTranslator.Setup.exe install --extension-id <CHROME_EXTENSION_ID> --install-root <CUSTOM_DIR>
-artifacts\native-host\setup\WaTranslator.Setup.exe install --extension-id <CHROME_EXTENSION_ID> --host-source <HOST_BUILD_DIR>
-artifacts\native-host\setup\WaTranslator.Setup.exe uninstall
+native-host\src\Setup\bin\Release\net8.0\WaTranslator.Setup.exe install --extension-id <CHROME_EXTENSION_ID> --install-root <CUSTOM_DIR>
+native-host\src\Setup\bin\Release\net8.0\WaTranslator.Setup.exe install --extension-id <CHROME_EXTENSION_ID> --host-source <HOST_BUILD_DIR>
+native-host\src\Setup\bin\Release\net8.0\WaTranslator.Setup.exe uninstall
 ```
 
 Catatan:
 
 - bila `--extension-id` tidak diberikan, setup executable akan meminta input interaktif
 - default install root adalah `%LOCALAPPDATA%\WA Translator`
-- bundle setup lokal ini memakai payload host yang sudah disiapkan di `artifacts\native-host\setup\host\`
+- executable hasil build repo bisa dipakai langsung dari output `Release`
+- bila Anda memakai `artifacts\native-host\setup\`, anggap itu sebagai output packaging lokal yang harus Anda generate sendiri
 
 #### 7. Verifikasi hasil setup executable
 
@@ -337,7 +339,7 @@ Sebelum extension dianggap siap dipakai, checklist minimum berikut harus lolos:
 - `extension/dist` berhasil dibuild
 - `WaTranslator.Host.exe` tersedia dari build Release
 - extension sudah di-load di `chrome://extensions/`
-- `WaTranslator.Setup.exe` tersedia di `artifacts/native-host/setup/`
+- `WaTranslator.Setup.exe` tersedia di `native-host/src/Setup/bin/Release/net8.0/` atau pada bundle lokal yang Anda generate sendiri
 - manifest `com.adwcoolgit.wa_translator.json` sudah dibuat
 - registry `HKCU\Software\Google\Chrome\NativeMessagingHosts\com.adwcoolgit.wa_translator` sudah terisi
 - provider CLI sudah ter-install dan login
@@ -504,3 +506,4 @@ Saat menambah atau mengubah fitur:
 5. update issue, task status, dan dokumentasi yang relevan bila scope implementasi berubah
 
 README ini adalah ringkasan implementasi repo. Untuk detail perilaku produk dan acceptance criteria, tetap gunakan PRD, UI/UX specification, constitution, dan artifacts di `specs/001-wa-translator-extension/` sebagai referensi utama.
+

@@ -17,6 +17,7 @@ public sealed record SetupUninstallResult(
 
 public sealed class NativeHostSetupService
 {
+    private const string HostDirectoryName = "host";
     private const string HostExecutableName = "WaTranslator.Host.exe";
 
     private readonly WindowsNativeHostRegistration registration;
@@ -53,9 +54,29 @@ public sealed class NativeHostSetupService
         }
 
         var normalizedInstallRoot = Path.GetFullPath(installRoot);
-        var hostInstallDirectory = Path.Combine(normalizedInstallRoot, "host");
-        Directory.CreateDirectory(hostInstallDirectory);
-        CopyDirectoryContents(normalizedSourceDirectory, hostInstallDirectory);
+        Directory.CreateDirectory(normalizedInstallRoot);
+
+        var hostInstallDirectory = Path.Combine(normalizedInstallRoot, HostDirectoryName);
+        var stagingDirectory = Path.Combine(normalizedInstallRoot, $".host-staging-{Guid.NewGuid():N}");
+
+        try
+        {
+            CopyDirectoryContents(normalizedSourceDirectory, stagingDirectory);
+
+            if (Directory.Exists(hostInstallDirectory))
+            {
+                Directory.Delete(hostInstallDirectory, recursive: true);
+            }
+
+            Directory.Move(stagingDirectory, hostInstallDirectory);
+        }
+        finally
+        {
+            if (Directory.Exists(stagingDirectory))
+            {
+                Directory.Delete(stagingDirectory, recursive: true);
+            }
+        }
 
         var installedHostExecutablePath = Path.Combine(hostInstallDirectory, HostExecutableName);
         var manifestPath = registration.InstallManifest(normalizedInstallRoot, installedHostExecutablePath, extensionId.Trim());
@@ -75,6 +96,15 @@ public sealed class NativeHostSetupService
         var manifestPath = registration.GetManifestPath(normalizedInstallRoot);
         registration.UninstallManifest(manifestPath);
 
+        var hostInstallDirectory = Path.Combine(normalizedInstallRoot, HostDirectoryName);
+        if (Directory.Exists(hostInstallDirectory))
+        {
+            Directory.Delete(hostInstallDirectory, recursive: true);
+        }
+
+        DeleteDirectoryIfEmpty(Path.GetDirectoryName(manifestPath), normalizedInstallRoot);
+        DeleteDirectoryIfEmpty(normalizedInstallRoot, null);
+
         return new SetupUninstallResult(
             normalizedInstallRoot,
             manifestPath,
@@ -85,12 +115,33 @@ public sealed class NativeHostSetupService
     {
         var candidates = new[]
         {
-            Path.Combine(baseDirectory, "host"),
-            Path.Combine(baseDirectory, "payload", "host"),
+            Path.Combine(baseDirectory, HostDirectoryName),
+            Path.Combine(baseDirectory, "payload", HostDirectoryName),
             Path.GetFullPath(Path.Combine(baseDirectory, "..", "..", "..", "..", "Host", "bin", "Release", "net8.0"))
         };
 
         return candidates.FirstOrDefault(Directory.Exists);
+    }
+
+    private static void DeleteDirectoryIfEmpty(string? directoryPath, string? stopAtDirectory)
+    {
+        var currentDirectory = directoryPath;
+        while (!string.IsNullOrEmpty(currentDirectory) && Directory.Exists(currentDirectory))
+        {
+            if (Directory.EnumerateFileSystemEntries(currentDirectory).Any())
+            {
+                return;
+            }
+
+            Directory.Delete(currentDirectory, recursive: false);
+            if (!string.IsNullOrEmpty(stopAtDirectory)
+                && string.Equals(currentDirectory, stopAtDirectory, StringComparison.OrdinalIgnoreCase))
+            {
+                return;
+            }
+
+            currentDirectory = Path.GetDirectoryName(currentDirectory);
+        }
     }
 
     private static void CopyDirectoryContents(string sourceDirectory, string destinationDirectory)
