@@ -5,6 +5,14 @@
   "description": "Translate WhatsApp Web messages through a local Native Messaging companion.",
   "permissions": ["storage", "nativeMessaging", "commands"],
   "host_permissions": ["https://web.whatsapp.com/*"],
+  "commands": {
+    "manual-translate-selection": {
+      "suggested_key": {
+        "default": "Ctrl+Shift+Y"
+      },
+      "description": "Translate selected text or the active WhatsApp composer draft"
+    }
+  },
   "background": {
     "service_worker": "assets/background.js",
     "type": "module"

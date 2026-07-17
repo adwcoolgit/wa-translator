@@ -1,4 +1,5 @@
 import { createIncomingTranslationController } from "./translation/incomingTranslationController";
+import { createManualTranslationController } from "./manual/manualTranslationController";
 
 export const bootWhatsAppContentScript = async (rootDocument: Document = document): Promise<void> => {
   if (typeof window === "undefined") {
@@ -11,7 +12,9 @@ export const bootWhatsAppContentScript = async (rootDocument: Document = documen
   }
 
   const controller = createIncomingTranslationController();
+  const manualController = createManualTranslationController();
   await controller.start(rootDocument);
+  await manualController.start(rootDocument);
 };
 
 void bootWhatsAppContentScript();
