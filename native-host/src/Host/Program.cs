@@ -1,4 +1,4 @@
-﻿using System.Buffers.Binary;
+using System.Buffers.Binary;
 using System.Text.Json;
 using WaTranslator.Host.Protocol;
 using WaTranslator.Providers;
@@ -9,6 +9,7 @@ internal static class Program
 {
     private static readonly HandshakeService HandshakeService = new();
     private static readonly ProviderHealthCheckService ProviderHealthCheckService = new();
+    private static readonly TranslationMessageHandler TranslationMessageHandler = new();
 
     private static int Main()
     {
@@ -35,7 +36,7 @@ internal static class Program
             "handshake" => HandleHandshake(root),
             "lifecycleQuery" => HandleLifecycleQuery(),
             "providerHealthCheckRequest" => HandleProviderHealthCheckRequest(root),
-            "translationRequest" => HandleTranslationRequest(),
+            "translationRequest" => HandleTranslationRequest(root),
             _ => JsonSerializer.Serialize(
                 new ErrorMessage(NativeMessagingProtocol.ProtocolVersion, "UNKNOWN_MESSAGE", "Unsupported native message type."),
                 NativeMessagingProtocol.JsonOptions)
@@ -77,14 +78,16 @@ internal static class Program
         return JsonSerializer.Serialize(response, NativeMessagingProtocol.JsonOptions);
     }
 
-    private static string HandleTranslationRequest()
+    private static string HandleTranslationRequest(JsonElement root)
     {
-        return JsonSerializer.Serialize(
-            new ErrorMessage(
-                NativeMessagingProtocol.ProtocolVersion,
-                "TRANSLATION_NOT_IMPLEMENTED",
-                "Translation execution is not implemented in the native host yet."),
-            NativeMessagingProtocol.JsonOptions);
+        var request = JsonSerializer.Deserialize<TranslationRequestMessage>(root.GetRawText(), NativeMessagingProtocol.JsonOptions)
+            ?? throw new InvalidOperationException("Translation request payload is required.");
+        var result = TranslationMessageHandler.Execute(request.Payload);
+        var response = new TranslationResponseMessage(
+            NativeMessagingProtocol.ProtocolVersion,
+            JsonSerializer.SerializeToElement(result, NativeMessagingProtocol.JsonOptions));
+
+        return JsonSerializer.Serialize(response, NativeMessagingProtocol.JsonOptions);
     }
 
     private static bool TryReadFrame(Stream input, out string json)

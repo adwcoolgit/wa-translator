@@ -105,6 +105,13 @@ export const sanitizedErrorCatalog: Record<
     supportCode: "CANCELLED",
     messageKey: "request.cancelled"
   },
+  ONBOARDING_REQUIRED: {
+    component: "extension",
+    severity: "blocking",
+    recoveryAction: "dismiss",
+    supportCode: "ONBOARDING_REQUIRED",
+    messageKey: "setup.onboardingRequired"
+  },
   QUEUE_OVERFLOW: {
     component: "extension",
     severity: "warning",

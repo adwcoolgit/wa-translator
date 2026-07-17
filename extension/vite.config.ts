@@ -21,6 +21,7 @@ export default defineConfig({
       "tests/**/*.test.ts",
       "tests/**/*.test.tsx",
       "../tests/contract/**/*.test.ts",
+      "../tests/fixtures/**/*.test.ts",
       "../tests/security/**/*.test.ts"
     ]
   },
