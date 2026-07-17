@@ -1,10 +1,29 @@
-import { resolve } from "node:path";
-import { defineConfig } from "vite";
+import { fileURLToPath } from "node:url";
+import { dirname, resolve } from "node:path";
+import { defineConfig } from "vitest/config";
 import react from "@vitejs/plugin-react";
+
+const __dirname = dirname(fileURLToPath(import.meta.url));
 
 export default defineConfig({
   plugins: [react()],
   publicDir: "public",
+  server: {
+    fs: {
+      allow: [resolve(__dirname, "..")]
+    }
+  },
+  test: {
+    globals: true,
+    environment: "node",
+    setupFiles: [resolve(__dirname, "tests/component/accessibility.setup.ts")],
+    include: [
+      "tests/**/*.test.ts",
+      "tests/**/*.test.tsx",
+      "../tests/contract/**/*.test.ts",
+      "../tests/security/**/*.test.ts"
+    ]
+  },
   build: {
     outDir: "dist",
     emptyOutDir: true,

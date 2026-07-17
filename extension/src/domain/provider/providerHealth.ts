@@ -1,38 +1,34 @@
+import { z } from "zod";
+
 import { sanitizedErrorSchema } from "../../shared/contracts/diagnostics";
 import { providerSchema } from "../../shared/contracts/translation";
+import { providerStatusSchema } from "../../shared/contracts/uiState";
 
-export type ProviderHealthState =
-  | "unknown"
-  | "checking"
-  | "ready"
-  | "missing"
-  | "authRequired"
-  | "timeout"
-  | "rateLimited"
-  | "invalidOutput"
-  | "unsafeConfiguration"
-  | "versionMismatch"
-  | "unavailable";
+export const providerHealthSchema = z
+  .object({
+    provider: providerSchema,
+    state: providerStatusSchema,
+    versionCategory: z.string().trim().min(1).nullable(),
+    lastLatencyBucket: z.string().trim().min(1).nullable(),
+    lastCheckedAt: z.number().int().positive().nullable(),
+    lastSanitizedError: sanitizedErrorSchema.nullable()
+  })
+  .strict();
 
-export type ProviderHealth = {
-  provider: "codex" | "claude";
-  state: ProviderHealthState;
-  versionCategory: string | null;
-  lastLatencyBucket: string | null;
-  lastCheckedAt: number | null;
-  lastSanitizedError: ReturnType<typeof sanitizedErrorSchema.parse> | null;
-};
+export type ProviderHealthState = z.infer<typeof providerStatusSchema>;
+export type ProviderHealth = z.infer<typeof providerHealthSchema>;
 
 export const createUnknownProviderHealth = (
   provider: "codex" | "claude"
-): ProviderHealth => ({
-  provider: providerSchema.parse(provider),
-  state: "unknown",
-  versionCategory: null,
-  lastLatencyBucket: null,
-  lastCheckedAt: null,
-  lastSanitizedError: null
-});
+): ProviderHealth =>
+  providerHealthSchema.parse({
+    provider,
+    state: "unknown",
+    versionCategory: null,
+    lastLatencyBucket: null,
+    lastCheckedAt: null,
+    lastSanitizedError: null
+  });
 
 export const bucketLatency = (latencyMs: number): string => {
   if (latencyMs < 1_000) {
@@ -70,12 +66,13 @@ export const normalizeProviderHealthState = (input: {
   latencyMs?: number | null;
   lastCheckedAt?: number | null;
   error?: unknown;
-}): ProviderHealth => ({
-  provider: providerSchema.parse(input.provider),
-  state: input.outcome,
-  versionCategory: input.versionCategory ?? null,
-  lastLatencyBucket:
-    typeof input.latencyMs === "number" ? bucketLatency(input.latencyMs) : null,
-  lastCheckedAt: input.lastCheckedAt ?? Date.now(),
-  lastSanitizedError: input.error ? sanitizedErrorSchema.parse(input.error) : null
-});
+}): ProviderHealth =>
+  providerHealthSchema.parse({
+    provider: input.provider,
+    state: input.outcome,
+    versionCategory: input.versionCategory ?? null,
+    lastLatencyBucket:
+      typeof input.latencyMs === "number" ? bucketLatency(input.latencyMs) : null,
+    lastCheckedAt: input.lastCheckedAt ?? Date.now(),
+    lastSanitizedError: input.error ? sanitizedErrorSchema.parse(input.error) : null
+  });
