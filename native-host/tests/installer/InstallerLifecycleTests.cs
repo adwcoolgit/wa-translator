@@ -2,6 +2,7 @@ using System.Text.Json;
 using WaTranslator.Diagnostics;
 using WaTranslator.Host;
 using WaTranslator.Security;
+using WaTranslator.Setup;
 using Xunit;
 
 namespace WaTranslator.NativeHost.InstallerTests;
@@ -37,6 +38,101 @@ public sealed class InstallerLifecycleTests
             if (Directory.Exists(rootDirectory))
             {
                 Directory.Delete(rootDirectory, recursive: true);
+            }
+        }
+    }
+
+    [Fact]
+    public void SetupServiceCopiesHostArtifactsAndRegistersManifest()
+    {
+        var registry = new FakeNativeHostRegistry();
+        var registration = new WindowsNativeHostRegistration(registry);
+        var service = new NativeHostSetupService(registration);
+        var tempRoot = Path.Combine(Path.GetTempPath(), $"wa-translator-setup-{Guid.NewGuid():N}");
+        var sourceDirectory = Path.Combine(tempRoot, "source");
+        var nestedDirectory = Path.Combine(sourceDirectory, "runtimes");
+        var installRoot = Path.Combine(tempRoot, "install");
+        Directory.CreateDirectory(nestedDirectory);
+        File.WriteAllText(Path.Combine(sourceDirectory, "WaTranslator.Host.exe"), "host-exe");
+        File.WriteAllText(Path.Combine(sourceDirectory, "WaTranslator.Host.dll"), "host-dll");
+        File.WriteAllText(Path.Combine(nestedDirectory, "extra.txt"), "runtime-extra");
+
+        try
+        {
+            var result = service.Install(sourceDirectory, installRoot, "extension-allowed");
+
+            Assert.Equal(Path.Combine(installRoot, "host"), result.HostInstallDirectory);
+            Assert.True(File.Exists(result.InstalledHostExecutablePath));
+            Assert.True(File.Exists(Path.Combine(result.HostInstallDirectory, "WaTranslator.Host.dll")));
+            Assert.True(File.Exists(Path.Combine(result.HostInstallDirectory, "runtimes", "extra.txt")));
+            Assert.Equal(WindowsNativeHostRegistration.RegistryKeyPath, registry.LastRegisteredKeyPath);
+            Assert.Equal(result.ManifestPath, registry.LastRegisteredManifestPath);
+
+            using var manifestDocument = JsonDocument.Parse(File.ReadAllText(result.ManifestPath));
+            Assert.Equal(result.InstalledHostExecutablePath, manifestDocument.RootElement.GetProperty("path").GetString());
+            Assert.Equal("chrome-extension://extension-allowed/", manifestDocument.RootElement.GetProperty("allowed_origins")[0].GetString());
+        }
+        finally
+        {
+            if (Directory.Exists(tempRoot))
+            {
+                Directory.Delete(tempRoot, recursive: true);
+            }
+        }
+    }
+
+    [Fact]
+    public void SetupServiceRejectsMissingHostExecutable()
+    {
+        var registry = new FakeNativeHostRegistry();
+        var service = new NativeHostSetupService(new WindowsNativeHostRegistration(registry));
+        var tempRoot = Path.Combine(Path.GetTempPath(), $"wa-translator-setup-missing-{Guid.NewGuid():N}");
+        Directory.CreateDirectory(tempRoot);
+
+        try
+        {
+            var exception = Assert.Throws<FileNotFoundException>(() =>
+                service.Install(tempRoot, Path.Combine(tempRoot, "install"), "extension-allowed"));
+
+            Assert.Contains("WaTranslator.Host.exe", exception.Message, StringComparison.Ordinal);
+        }
+        finally
+        {
+            if (Directory.Exists(tempRoot))
+            {
+                Directory.Delete(tempRoot, recursive: true);
+            }
+        }
+    }
+
+    [Fact]
+    public void SetupServiceUninstallRemovesManifestAndRegistration()
+    {
+        var registry = new FakeNativeHostRegistry();
+        var registration = new WindowsNativeHostRegistration(registry);
+        var service = new NativeHostSetupService(registration);
+        var tempRoot = Path.Combine(Path.GetTempPath(), $"wa-translator-uninstall-{Guid.NewGuid():N}");
+        var sourceDirectory = Path.Combine(tempRoot, "source");
+        var installRoot = Path.Combine(tempRoot, "install");
+        Directory.CreateDirectory(sourceDirectory);
+        File.WriteAllText(Path.Combine(sourceDirectory, "WaTranslator.Host.exe"), "host-exe");
+
+        try
+        {
+            var installResult = service.Install(sourceDirectory, installRoot, "extension-allowed");
+            Assert.True(File.Exists(installResult.ManifestPath));
+
+            var uninstallResult = service.Uninstall(installRoot);
+
+            Assert.Equal(installResult.ManifestPath, uninstallResult.ManifestPath);
+            Assert.False(File.Exists(installResult.ManifestPath));
+            Assert.Equal(WindowsNativeHostRegistration.RegistryKeyPath, registry.LastDeletedKeyPath);
+        }
+        finally
+        {
+            if (Directory.Exists(tempRoot))
+            {
+                Directory.Delete(tempRoot, recursive: true);
             }
         }
     }

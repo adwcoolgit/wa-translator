@@ -19,5 +19,6 @@
     <ProjectReference Include="..\..\src\Host\WaTranslator.Host.csproj" />
     <ProjectReference Include="..\..\src\Diagnostics\WaTranslator.Diagnostics.csproj" />
     <ProjectReference Include="..\..\src\Security\WaTranslator.Security.csproj" />
+    <ProjectReference Include="..\..\src\Setup\WaTranslator.Setup.csproj" />
   </ItemGroup>
 </Project>
