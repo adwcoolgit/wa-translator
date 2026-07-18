@@ -42,16 +42,16 @@ const severityLabels: Record<SanitizedErrorSeverity, string> = {
 };
 
 export const recoveryActionLabels: Record<RecoveryAction, string> = {
-  retry: "Retry",
+  retry: "Translate again",
   openDiagnostics: "Open diagnostics",
   installCompanion: "Install companion",
   updateCompanion: "Update companion",
   signInWithCli: "Sign in with CLI",
   selectExecutable: "Select executable",
   openShortcutSettings: "Open shortcut settings",
-  copyResult: "Copy result",
+  copyResult: "Copy translation",
   returnToChat: "Return to chat",
-  dismiss: "Dismiss"
+  dismiss: "Close"
 };
 
 type CatalogEntry = {
@@ -88,13 +88,13 @@ const errorPresentationCatalog: Record<SanitizedErrorCode, CatalogEntry> = {
   },
   PROVIDER_TIMEOUT: {
     title: "Translation timed out",
-    body: "The provider took too long to respond. Retry, or review diagnostics if the delay keeps happening.",
+    body: "The provider took too long to respond. Translate again, or review diagnostics if the delay keeps happening.",
     primaryAction: "retry",
     secondaryAction: "openDiagnostics"
   },
   PROVIDER_RATE_LIMIT: {
     title: "Provider usage limit reached",
-    body: "The active provider rejected the request because of a temporary usage limit. Retry after a short wait.",
+    body: "The active provider rejected the request because of a temporary usage limit. Translate again after a short wait.",
     primaryAction: "retry",
     secondaryAction: "openDiagnostics"
   },
@@ -118,13 +118,13 @@ const errorPresentationCatalog: Record<SanitizedErrorCode, CatalogEntry> = {
   },
   SELECTION_NOT_FOUND: {
     title: "Selection is no longer available",
-    body: "The selected text changed before translation finished. Re-select the text and retry.",
+    body: "The selected text changed before translation finished. Re-select the text and translate the latest target again.",
     primaryAction: "dismiss",
     secondaryAction: "returnToChat"
   },
   INSERTION_FAILED: {
     title: "WA Translator could not insert the result",
-    body: "The translation is available, but the composer or selected target changed before insertion completed.",
+    body: "The translation is still available, but the composer or selected target changed before insertion completed. Copy the current result or retry on the latest target.",
     primaryAction: "copyResult",
     secondaryAction: "returnToChat"
   },
@@ -142,7 +142,7 @@ const errorPresentationCatalog: Record<SanitizedErrorCode, CatalogEntry> = {
   },
   QUEUE_OVERFLOW: {
     title: "Too many translations are queued",
-    body: "WA Translator dropped this request to avoid stale or misleading results. Retry when the queue is calmer.",
+    body: "WA Translator dropped this request to avoid stale or misleading results. Translate again when the queue is calmer.",
     primaryAction: "retry",
     secondaryAction: "openDiagnostics"
   },

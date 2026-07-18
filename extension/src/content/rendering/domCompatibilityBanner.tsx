@@ -13,10 +13,11 @@ export interface DomCompatibilityBannerProps {
 function DomCompatibilityBanner({ state, onAction }: DomCompatibilityBannerProps) {
   return (
     <section aria-label="DOM compatibility warning" data-surface="dom-compatibility-banner">
+      <strong>WA Translator compatibility</strong>
       <p>
         {state === "degraded"
-          ? "WA Translator is using a degraded compatibility mode."
-          : "WA Translator paused automatic translation because WhatsApp Web changed."}
+          ? "WA Translator detected a WhatsApp Web layout change. Automatic translation is limited until compatibility is confirmed again."
+          : "WA Translator paused automatic translation because this WhatsApp Web layout is no longer safe for automatic rendering."}
       </p>
       <RecoveryActionPanel
         compact

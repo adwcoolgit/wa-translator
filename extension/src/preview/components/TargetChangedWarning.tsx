@@ -2,21 +2,23 @@ import React from "react";
 
 export interface TargetChangedWarningProps {
   targetType: "editableSelection" | "fullComposer" | "caretInsert" | "nonEditableSelection";
+  reason: string;
 }
 
-const buildWarningCopy = (targetType: TargetChangedWarningProps["targetType"]): string => {
+const buildFallbackCopy = (targetType: TargetChangedWarningProps["targetType"]): string => {
   if (targetType === "nonEditableSelection") {
-    return "Selection source berubah atau hilang. Tinjau hasil terlebih dahulu sebelum melanjutkan.";
+    return "Safer fallback: copy the current result or translate the latest message selection again.";
   }
 
-  return "Composer berubah sejak permintaan dimulai. Apply diblokir sampai Anda menjalankan translasi ulang pada target terbaru.";
+  return "Safer fallback: copy the current result or translate the latest composer target again.";
 };
 
-export function TargetChangedWarning({ targetType }: TargetChangedWarningProps) {
+export function TargetChangedWarning({ targetType, reason }: TargetChangedWarningProps) {
   return (
     <div aria-live="polite" data-testid="target-changed-warning" role="alert">
       <strong>Target changed</strong>
-      <p>{buildWarningCopy(targetType)}</p>
+      <p>{reason}</p>
+      <p>{buildFallbackCopy(targetType)}</p>
     </div>
   );
 }

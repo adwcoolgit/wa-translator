@@ -1,10 +1,14 @@
-import React from "react";
+import React, { useEffect, useRef } from "react";
 import { createRoot, type Root } from "react-dom/client";
 
 import type { TranslationRequestState } from "../../domain/translation/requestState";
 import { RecoveryActionPanel } from "../../shared/components/RecoveryActionPanel";
 import type { SanitizedTranslationError } from "../../shared/contracts/translation";
-import { buildTranslationActionState, runTranslationAction, type TranslationActionHandlers } from "./translationActions";
+import {
+  buildTranslationUiState,
+  runTranslationAction,
+  type TranslationActionHandlers
+} from "./translationActions";
 
 export interface TranslationPopoverProps {
   anchorId: string;
@@ -16,32 +20,6 @@ export interface TranslationPopoverProps {
   actions: TranslationActionHandlers;
 }
 
-const describeState = (
-  requestState: TranslationRequestState,
-  error: SanitizedTranslationError | null
-): string => {
-  switch (requestState) {
-    case "queued":
-      return "Translation queued.";
-    case "processing":
-      return "Translation in progress.";
-    case "validating":
-      return "Validating provider output.";
-    case "success":
-      return "Translation ready.";
-    case "error":
-      return error ? `Translation failed: ${error.code}.` : "Translation failed.";
-    case "stale":
-      return "Translation result became stale.";
-    case "cancelled":
-      return "Translation cancelled.";
-    case "dropped":
-      return "Translation dropped because the queue is full.";
-    default:
-      return "Translation is idle.";
-  }
-};
-
 export function TranslationPopover({
   anchorId,
   requestState,
@@ -51,12 +29,22 @@ export function TranslationPopover({
   onClose,
   actions
 }: TranslationPopoverProps) {
-  const actionState = buildTranslationActionState({
+  const closeButtonRef = useRef<HTMLButtonElement | null>(null);
+  const uiState = buildTranslationUiState({
     requestState,
     translation,
     error,
-    mode: "tooltip"
+    mode: "tooltip",
+    translationVisible: Boolean(translation),
+    originalVisible: true,
+    focusRestorationKey: anchorId
   });
+
+  useEffect(() => {
+    if (open) {
+      closeButtonRef.current?.focus();
+    }
+  }, [open]);
 
   if (!open) {
     return null;
@@ -68,15 +56,27 @@ export function TranslationPopover({
       className="wa-translator-popover"
       data-anchor-id={anchorId}
       data-surface="translation-popover"
+      onKeyDown={(event) => {
+        if (event.key === "Escape") {
+          event.preventDefault();
+          onClose();
+        }
+      }}
       role="dialog"
     >
       <header>
-        <strong>WA Translator</strong>
-        <button aria-label="Close translation details" onClick={onClose} type="button">
+        <strong>{uiState.ownerLabel}</strong>
+        <button
+          aria-label="Close translation details"
+          onClick={onClose}
+          ref={closeButtonRef}
+          type="button"
+        >
           Close
         </button>
       </header>
-      <p aria-live="polite">{describeState(requestState, error)}</p>
+      <p>{uiState.surfaceDescription}</p>
+      <p aria-live="polite">{uiState.statusText}</p>
       {translation ? <p data-testid="translation-text">{translation}</p> : null}
       {error ? (
         <div data-testid="translation-error">
@@ -84,19 +84,19 @@ export function TranslationPopover({
         </div>
       ) : null}
       <div className="wa-translator-popover-actions">
-        {actionState.canCopy ? (
+        {uiState.copyLabel ? (
           <button onClick={() => void runTranslationAction(actions.onCopy)} type="button">
-            Copy translation
+            {uiState.copyLabel}
           </button>
         ) : null}
-        {actionState.canRetry ? (
+        {uiState.retryLabel ? (
           <button onClick={() => void runTranslationAction(actions.onRetry)} type="button">
-            Retry
+            {uiState.retryLabel}
           </button>
         ) : null}
-        {actionState.canHide ? (
+        {uiState.hideLabel ? (
           <button onClick={() => void runTranslationAction(actions.onHide)} type="button">
-            Hide
+            {uiState.hideLabel}
           </button>
         ) : null}
       </div>

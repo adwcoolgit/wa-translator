@@ -1,4 +1,8 @@
+import { createSanitizedError } from "../../domain/errors/sanitizedErrors";
 import {
+  getManualDraftProtectionSummary,
+  getManualTargetLabel,
+  getManualTargetStaleReason,
   requiresExplicitApplyConfirmation,
   type ManualTargetSnapshot
 } from "../../domain/manual/manualTargetSnapshot";
@@ -8,6 +12,10 @@ import {
   type ManualUndoService
 } from "../../domain/manual/manualUndoService";
 import {
+  describeManualTranslationRequest,
+  buildManualTranslationRequest
+} from "../../domain/manual/manualTranslationRequestBuilder";
+import {
   createSettingsRepository,
   type SettingsRepository
 } from "../../domain/settings/settingsRepository";
@@ -16,17 +24,16 @@ import {
   createManualTranslationDiagnosticsRecorder,
   type ManualTranslationDiagnosticsRecorder
 } from "../../diagnostics/manualTranslationDiagnostics";
-import { createSanitizedError } from "../../domain/errors/sanitizedErrors";
-import { buildManualTranslationRequest } from "../../domain/manual/manualTranslationRequestBuilder";
-import {
-  createExtensionMessage,
-  parseExtensionMessage
-} from "../../shared/messaging/extensionMessageBus";
+import { manualPreviewStateSchema } from "../../shared/contracts/uiState";
 import type {
   SanitizedTranslationError,
   TranslationRequest,
   TranslationResponse
 } from "../../shared/contracts/translation";
+import {
+  createExtensionMessage,
+  parseExtensionMessage
+} from "../../shared/messaging/extensionMessageBus";
 import { copyWithBestEffortRestore } from "./clipboardFallback";
 import {
   applyComposerTargetTranslation,
@@ -50,6 +57,12 @@ import {
 } from "./selectionTargetDetector";
 import { mountManualPreviewApp, type ManualPreviewHandle } from "../../preview/ManualPreviewApp";
 import {
+  canManualPreviewRetry,
+  getManualPreviewApplyLabel,
+  getManualPreviewCopyLabel,
+  getManualPreviewRetryLabel,
+  getManualPreviewStatusText,
+  getManualPreviewUndoLabel,
   manualPreviewStartMessageSchema,
   type ManualPreviewStartMessage
 } from "../../preview/manualPreviewMessaging";
@@ -133,15 +146,24 @@ const createPreviewMount = (rootDocument: Document): ManualPreviewHandle => {
       sourceText: "",
       translation: null,
       targetType: "editableSelection",
+      targetLabel: "Selected composer text",
+      targetDescription: "Review the captured target before applying any translation.",
+      requestSummary: "Target language: English.",
       targetChanged: false,
       canApply: false,
       canCopy: false,
       canCancel: false,
       canUndo: false,
+      canRetry: false,
       requestState: "idle",
+      statusText: "Choose a supported WhatsApp target to begin.",
       error: null,
       applyLabel: null,
-      undoLabel: "Undo"
+      retryLabel: null,
+      copyLabel: getManualPreviewCopyLabel(),
+      undoLabel: getManualPreviewUndoLabel(),
+      staleReason: null,
+      draftProtectionSummary: null
     },
     handlers: {}
   });
@@ -152,18 +174,18 @@ const isNonEditableTarget = (
 ): target is ResolvedNonEditableSelectionTarget =>
   target.snapshot.targetType === "nonEditableSelection";
 
-const getApplyLabel = (target: ManualTarget): string | null => {
-  switch (target.snapshot.targetType) {
+const getTargetDescription = (snapshot: ManualTargetSnapshot): string => {
+  switch (snapshot.targetType) {
     case "editableSelection":
-      return "Replace selection";
+      return "Only the currently selected composer text is eligible for replacement.";
     case "fullComposer":
-      return "Replace composer";
+      return "This request targets the full composer draft that was captured when translation started.";
     case "caretInsert":
-      return "Insert at caret";
+      return "This request targets the current composer insertion point without replacing unrelated draft text.";
     case "nonEditableSelection":
-      return "Insert into composer";
+      return "This request targets selected received-message text and can only insert the result into the composer.";
     default:
-      return null;
+      return "Review the captured target before applying any translation.";
   }
 };
 
@@ -176,6 +198,7 @@ export class ManualTranslationController {
   private rootDocument: Document | null = null;
   private session: ActiveManualSession | null = null;
   private activeUndoEntry: ManualUndoEntry | null = null;
+  private focusRestoreTarget: HTMLElement | null = null;
 
   public constructor(input?: {
     settingsRepository?: SettingsRepository;
@@ -219,11 +242,16 @@ export class ManualTranslationController {
     this.preview = null;
     this.session = null;
     this.activeUndoEntry = null;
+    this.focusRestoreTarget = null;
     this.undoService.clear();
   }
 
   public async requestManualTranslation(): Promise<void> {
     const rootDocument = this.rootDocument ?? document;
+    this.focusRestoreTarget = rootDocument.activeElement instanceof HTMLElement
+      ? rootDocument.activeElement
+      : null;
+
     const settings = await this.settingsRepository.load();
     if (!settings.enabled || settings.onboardingStatus !== "complete") {
       return;
@@ -283,9 +311,10 @@ export class ManualTranslationController {
       return;
     }
 
-    this.session.requestState = "success";
     this.session.translation = response.translation;
+    this.session.error = null;
     this.session.targetChanged = this.computeTargetChanged(target, rootDocument);
+    this.session.requestState = this.session.targetChanged ? "stale" : "success";
     this.diagnostics.recordTranslationCompleted({
       target: target.snapshot,
       provider: settings.providerActive,
@@ -293,10 +322,10 @@ export class ManualTranslationController {
     });
 
     if (
+      !this.session.targetChanged &&
       !isNonEditableTarget(target) &&
       settings.manualMode === "directReplace" &&
-      !requiresExplicitApplyConfirmation(target.snapshot) &&
-      !this.session.targetChanged
+      !requiresExplicitApplyConfirmation(target.snapshot)
     ) {
       const applied = this.applyCurrentTranslation();
       if (applied) {
@@ -360,6 +389,12 @@ export class ManualTranslationController {
     return didComposerTargetChange(target, rootDocument);
   }
 
+  private restoreFocus(): void {
+    if (this.focusRestoreTarget?.isConnected) {
+      this.focusRestoreTarget.focus();
+    }
+  }
+
   private applyCurrentTranslation(): boolean {
     const rootDocument = this.rootDocument ?? document;
     if (!this.session || !this.session.translation) {
@@ -368,6 +403,7 @@ export class ManualTranslationController {
 
     if (this.computeTargetChanged(this.session.target, rootDocument)) {
       this.session.targetChanged = true;
+      this.session.requestState = "stale";
       this.renderPreview();
       return false;
     }
@@ -382,6 +418,7 @@ export class ManualTranslationController {
       });
       if (!mutation) {
         this.session.error = createNonEditableInsertionError();
+        this.session.requestState = "error";
         this.renderPreview();
         return false;
       }
@@ -389,6 +426,7 @@ export class ManualTranslationController {
       mutation = applyComposerTargetTranslation(this.session.target, this.session.translation);
       if (!mutation) {
         this.session.error = createInsertionFailedError();
+        this.session.requestState = "error";
         this.renderPreview();
         return false;
       }
@@ -418,17 +456,26 @@ export class ManualTranslationController {
     const copied = await copyWithBestEffortRestore(this.session.translation);
     if (!copied.copied) {
       this.session.error = createSanitizedError("INSERTION_FAILED");
+      this.session.requestState = "error";
       this.renderPreview();
     }
   }
 
-  private cancelCurrentPreview(): void {
+  private async retryCurrentTranslation(): Promise<void> {
+    this.cancelCurrentPreview(false);
+    await this.requestManualTranslation();
+  }
+
+  private cancelCurrentPreview(restoreFocus = true): void {
     if (this.session) {
       this.diagnostics.recordCancel(this.session.target.snapshot);
     }
 
     this.session = null;
     this.renderPreview(false);
+    if (restoreFocus) {
+      this.restoreFocus();
+    }
   }
 
   private undoLastMutation(): void {
@@ -458,34 +505,84 @@ export class ManualTranslationController {
     }
 
     const session = this.session;
+    const requestSummary = session ? describeManualTranslationRequest(session.settings) : null;
+    const canRetry = session
+      ? canManualPreviewRetry({
+          requestState: session.requestState,
+          error: session.error,
+          targetChanged: session.targetChanged
+        })
+      : false;
+    const retryLabel = session
+      ? getManualPreviewRetryLabel({
+          requestState: session.requestState,
+          error: session.error,
+          targetChanged: session.targetChanged
+        })
+      : null;
+    const previewState = manualPreviewStateSchema.parse({
+      targetType: session?.target.snapshot.targetType ?? "editableSelection",
+      targetChanged: session?.targetChanged ?? false,
+      canApply:
+        Boolean(session?.translation) &&
+        !session?.targetChanged &&
+        session?.requestState === "success",
+      canCopy: Boolean(session?.translation),
+      canCancel: Boolean(session),
+      canUndo: this.activeUndoEntry !== null,
+      requestState: session?.requestState ?? "idle",
+      targetLabel: session ? getManualTargetLabel(session.target.snapshot) : "Selected composer text",
+      targetDescription: session ? getTargetDescription(session.target.snapshot) : "Review the captured target before applying any translation.",
+      requestSummary: requestSummary?.summary ?? "Target language: English.",
+      statusText: getManualPreviewStatusText({
+        requestState: session?.requestState ?? "idle",
+        error: session?.error ?? null,
+        targetChanged: session?.targetChanged ?? false
+      }),
+      applyLabel: session ? getManualPreviewApplyLabel(session.target.snapshot.targetType) : null,
+      retryLabel,
+      copyLabel: getManualPreviewCopyLabel(),
+      undoLabel: getManualPreviewUndoLabel(),
+      staleReason: session?.targetChanged ? getManualTargetStaleReason(session.target.snapshot) : null,
+      draftProtectionVisible: Boolean(session),
+      draftProtectionSummary: session ? getManualDraftProtectionSummary(session.target.snapshot) : null
+    });
+
     this.preview.update({
       model: {
         open: open && Boolean(session),
-        sourceText: session ?
-          (isNonEditableTarget(session.target)
-            ? session.target.selectedText
-            : session.target.sourceText)
+        sourceText: session
+          ? (isNonEditableTarget(session.target)
+              ? session.target.selectedText
+              : session.target.sourceText)
           : "",
         translation: session?.translation ?? null,
-        targetType: session?.target.snapshot.targetType ?? "editableSelection",
-        targetChanged: session?.targetChanged ?? false,
-        canApply:
-          Boolean(session?.translation) &&
-          !session?.targetChanged &&
-          session?.requestState === "success",
-        canCopy: Boolean(session?.translation),
-        canCancel: Boolean(session),
-        canUndo: this.activeUndoEntry !== null,
-        requestState: session?.requestState ?? "idle",
+        targetType: previewState.targetType,
+        targetLabel: previewState.targetLabel ?? "Selected composer text",
+        targetDescription: previewState.targetDescription ?? "Review the captured target before applying any translation.",
+        requestSummary: previewState.requestSummary ?? "Target language: English.",
+        targetChanged: previewState.targetChanged,
+        canApply: previewState.canApply,
+        canCopy: previewState.canCopy,
+        canCancel: previewState.canCancel,
+        canUndo: previewState.canUndo,
+        canRetry,
+        requestState: previewState.requestState,
+        statusText: previewState.statusText ?? "Choose a supported WhatsApp target to begin.",
         error: session?.error ?? null,
-        applyLabel: session ? getApplyLabel(session.target) : null,
-        undoLabel: "Undo"
+        applyLabel: previewState.applyLabel ?? null,
+        retryLabel: previewState.retryLabel ?? null,
+        copyLabel: previewState.copyLabel ?? getManualPreviewCopyLabel(),
+        undoLabel: previewState.undoLabel ?? getManualPreviewUndoLabel(),
+        staleReason: previewState.staleReason ?? null,
+        draftProtectionSummary: previewState.draftProtectionSummary ?? null
       },
       handlers: {
         onApply: () => {
           this.applyCurrentTranslation();
         },
         onCopy: () => this.copyCurrentTranslation(),
+        onRetry: () => this.retryCurrentTranslation(),
         onCancel: () => {
           this.cancelCurrentPreview();
         },
@@ -500,4 +597,7 @@ export class ManualTranslationController {
 export const createManualTranslationController = (
   input?: ConstructorParameters<typeof ManualTranslationController>[0]
 ): ManualTranslationController => new ManualTranslationController(input);
+
+
+
 

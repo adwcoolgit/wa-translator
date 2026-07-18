@@ -18,10 +18,17 @@ describe("RecoveryActionPanel", () => {
 
     expect(screen.getByRole("heading", { name: /translation timed out/i })).toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole("button", { name: /retry/i }));
+    fireEvent.click(screen.getByRole("button", { name: /translate again/i }));
     fireEvent.click(screen.getByRole("button", { name: /open diagnostics/i }));
 
     expect(onAction).toHaveBeenNthCalledWith(1, "retry");
     expect(onAction).toHaveBeenNthCalledWith(2, "openDiagnostics");
+  });
+
+  it("uses copy-first fallback copy when insertion is no longer safe", () => {
+    render(<RecoveryActionPanel error={createSanitizedError("INSERTION_FAILED")} />);
+
+    expect(screen.getByText(/copy the current result or retry on the latest target/i)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /copy translation/i })).toBeInTheDocument();
   });
 });
