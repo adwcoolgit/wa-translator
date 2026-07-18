@@ -1,6 +1,9 @@
 import { createSanitizedError } from "../../domain/errors/sanitizedErrors";
 import type { ComposerMutationSnapshot } from "./composerMutationService";
-import { applyComposerTargetTranslation } from "./composerMutationService";
+import {
+  applyComposerTargetTranslation,
+  createSafeComposerInsertionTarget
+} from "./composerMutationService";
 import { copyWithBestEffortRestore } from "./clipboardFallback";
 import { detectComposerInsertionTarget } from "./composerTargetDetector";
 import { resolveActiveChatScope } from "../whatsapp/messageTextExtractor";
@@ -21,11 +24,16 @@ export const insertNonEditableTranslationIntoComposer = (input: {
   }
 
   const target = detectComposerInsertionTarget(rootDocument);
-  if (!target || target.snapshot.composerState === "draftNoReliableCaret") {
+  if (!target) {
     return null;
   }
 
-  return applyComposerTargetTranslation(target, input.translation);
+  const insertionTarget = createSafeComposerInsertionTarget(target);
+  if (!insertionTarget) {
+    return null;
+  }
+
+  return applyComposerTargetTranslation(insertionTarget, input.translation);
 };
 
 export const createNonEditableInsertionError = () => createSanitizedError("INSERTION_FAILED");

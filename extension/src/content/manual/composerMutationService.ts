@@ -68,6 +68,37 @@ const applyComposerText = (
   dispatchInputEvent(composerElement);
 };
 
+export const createSafeComposerInsertionTarget = (
+  target: ResolvedComposerTarget
+): ResolvedComposerTarget | null => {
+  if (
+    target.snapshot.composerState === "recycled" ||
+    target.snapshot.composerState === "draftNoReliableCaret"
+  ) {
+    return null;
+  }
+
+  const insertionOffset = target.snapshot.targetType === "editableSelection"
+    ? target.selectionEnd
+    : target.selectionStart;
+
+  return {
+    ...target,
+    snapshot: {
+      ...target.snapshot,
+      targetType: "caretInsert",
+      composerState:
+        target.snapshot.composerState === "selectedRange"
+          ? "hasCaret"
+          : target.snapshot.composerState,
+      sourceExcerpt: target.composerText
+    },
+    sourceText: target.composerText,
+    selectionStart: insertionOffset,
+    selectionEnd: insertionOffset
+  };
+};
+
 export const applyComposerTargetTranslation = (
   target: ResolvedComposerTarget,
   translation: string
@@ -142,3 +173,5 @@ export const restoreComposerMutation = (snapshot: ComposerMutationSnapshot): boo
 };
 
 export const createInsertionFailedError = () => createSanitizedError("INSERTION_FAILED");
+
+

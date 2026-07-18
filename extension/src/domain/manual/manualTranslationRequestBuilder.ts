@@ -1,5 +1,6 @@
 import type { ManualTargetSnapshot } from "./manualTargetSnapshot";
 import type { UserSettings } from "../settings/userSettings";
+import { en } from "../../shared/i18n/en";
 import {
   translationRequestSchema,
   type TranslationRequest,
@@ -14,6 +15,33 @@ const mapManualTargetToTranslationTarget = (
   snapshot: ManualTargetSnapshot
 ): TranslationTargetType =>
   snapshot.targetType === "nonEditableSelection" ? "nonEditableSelection" : "editableComposer";
+
+const getLanguageLabel = (languageCode: string): string =>
+  en.languages[languageCode as keyof typeof en.languages] ?? languageCode;
+
+const getStyleLabel = (styleId: UserSettings["styleId"]): string =>
+  en.styles[styleId] ?? styleId;
+
+export interface ManualTranslationRequestSummary {
+  readonly targetLanguageLabel: string;
+  readonly styleLabel: string | null;
+  readonly summary: string;
+}
+
+export const describeManualTranslationRequest = (
+  settings: Pick<UserSettings, "targetLanguage" | "styleId">
+): ManualTranslationRequestSummary => {
+  const targetLanguageLabel = getLanguageLabel(settings.targetLanguage);
+  const styleLabel = settings.styleId === "neutral" ? null : getStyleLabel(settings.styleId);
+
+  return {
+    targetLanguageLabel,
+    styleLabel,
+    summary: styleLabel
+      ? `Target language: ${targetLanguageLabel}. Tone: ${styleLabel}.`
+      : `Target language: ${targetLanguageLabel}.`
+  };
+};
 
 export const buildManualTranslationRequest = (input: {
   sourceText: string;

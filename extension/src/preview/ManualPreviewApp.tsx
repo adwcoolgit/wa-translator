@@ -1,8 +1,12 @@
-import React from "react";
+import React, { useEffect, useRef } from "react";
 import { createRoot, type Root } from "react-dom/client";
 
+import { createSanitizedError } from "../domain/errors/sanitizedErrors";
 import type { TranslationRequestState } from "../domain/translation/requestState";
+import { sanitizedErrorCodeSchema } from "../shared/contracts/diagnostics";
 import type { SanitizedTranslationError } from "../shared/contracts/translation";
+import { presentRecoverableError } from "../shared/errors/recoverableErrorPresenter";
+import { getManualPreviewResultPlaceholder } from "./manualPreviewMessaging";
 import { TargetChangedWarning } from "./components/TargetChangedWarning";
 
 export interface ManualPreviewModel {
@@ -10,20 +14,30 @@ export interface ManualPreviewModel {
   sourceText: string;
   translation: string | null;
   targetType: "editableSelection" | "fullComposer" | "caretInsert" | "nonEditableSelection";
+  targetLabel: string;
+  targetDescription: string;
+  requestSummary: string;
   targetChanged: boolean;
   canApply: boolean;
   canCopy: boolean;
   canCancel: boolean;
   canUndo: boolean;
+  canRetry: boolean;
   requestState: TranslationRequestState;
+  statusText: string;
   error: SanitizedTranslationError | null;
   applyLabel: string | null;
+  retryLabel: string | null;
+  copyLabel: string;
   undoLabel: string;
+  staleReason: string | null;
+  draftProtectionSummary: string | null;
 }
 
 export interface ManualPreviewHandlers {
   onApply?: () => void | Promise<void>;
   onCopy?: () => void | Promise<void>;
+  onRetry?: () => void | Promise<void>;
   onCancel?: () => void | Promise<void>;
   onUndo?: () => void | Promise<void>;
 }
@@ -33,10 +47,20 @@ export interface ManualPreviewAppProps {
   handlers: ManualPreviewHandlers;
 }
 
+const normalizeRecoverableError = (error: SanitizedTranslationError) => {
+  const parsed = sanitizedErrorCodeSchema.safeParse(error.code);
+  return createSanitizedError(parsed.success ? parsed.data : "PROVIDER_INVALID_OUTPUT");
+};
+
 const describeRequestState = (
   requestState: TranslationRequestState,
-  error: SanitizedTranslationError | null
+  error: SanitizedTranslationError | null,
+  statusText: string
 ): string => {
+  if (statusText.trim()) {
+    return statusText;
+  }
+
   switch (requestState) {
     case "queued":
       return "Translation queued.";
@@ -60,35 +84,66 @@ const describeRequestState = (
 };
 
 export function ManualPreviewApp({ model, handlers }: ManualPreviewAppProps) {
+  const dialogRef = useRef<HTMLElement | null>(null);
+  const recoveryPresentation = model.error
+    ? presentRecoverableError(normalizeRecoverableError(model.error))
+    : null;
+
+  useEffect(() => {
+    if (model.open) {
+      dialogRef.current?.focus();
+    }
+  }, [model.open]);
+
   return (
     <>
       {model.open ? (
         <section
           aria-label="Manual translation preview"
           data-surface="manual-preview"
+          onKeyDown={(event) => {
+            if (event.key === "Escape") {
+              event.preventDefault();
+              void handlers.onCancel?.();
+            }
+          }}
+          ref={dialogRef}
           role="dialog"
+          tabIndex={-1}
         >
           <header>
             <p>WA Translator</p>
             <h1>Manual translation preview</h1>
+            <p>{model.targetLabel}</p>
+            <p>{model.requestSummary}</p>
           </header>
-          <p aria-live="polite">{describeRequestState(model.requestState, model.error)}</p>
+          <p aria-live="polite">{describeRequestState(model.requestState, model.error, model.statusText)}</p>
 
-          {model.targetChanged ? <TargetChangedWarning targetType={model.targetType} /> : null}
+          {model.targetChanged && model.staleReason ? (
+            <TargetChangedWarning reason={model.staleReason} targetType={model.targetType} />
+          ) : null}
 
           <section>
-            <h2>Original</h2>
+            <h2>Source snippet</h2>
+            <p>{model.targetDescription}</p>
             <p data-testid="manual-preview-source">{model.sourceText || "No source text captured."}</p>
           </section>
 
           <section>
-            <h2>Translation</h2>
+            <h2>Translation result</h2>
             <p data-testid="manual-preview-translation">
-              {model.translation ?? "Translation result will appear here."}
+              {model.translation ?? getManualPreviewResultPlaceholder(model.requestState)}
             </p>
           </section>
 
-          {model.error ? <p data-testid="manual-preview-error">{model.error.recoveryAction}</p> : null}
+          {model.draftProtectionSummary ? <p>{model.draftProtectionSummary}</p> : null}
+
+          {recoveryPresentation && !model.targetChanged ? (
+            <section aria-label="Manual preview recovery" data-testid="manual-preview-error">
+              <strong>{recoveryPresentation.title}</strong>
+              <p>{recoveryPresentation.body}</p>
+            </section>
+          ) : null}
 
           <div>
             <button
@@ -98,12 +153,21 @@ export function ManualPreviewApp({ model, handlers }: ManualPreviewAppProps) {
             >
               Cancel
             </button>
+            {model.retryLabel ? (
+              <button
+                disabled={!model.canRetry}
+                onClick={() => void handlers.onRetry?.()}
+                type="button"
+              >
+                {model.retryLabel}
+              </button>
+            ) : null}
             <button
               disabled={!model.canCopy}
               onClick={() => void handlers.onCopy?.()}
               type="button"
             >
-              Copy translation
+              {model.copyLabel}
             </button>
             {model.applyLabel ? (
               <button
@@ -120,7 +184,7 @@ export function ManualPreviewApp({ model, handlers }: ManualPreviewAppProps) {
 
       {model.canUndo ? (
         <section aria-live="polite" data-surface="manual-undo" role="status">
-          <p>Translation applied. Undo is available for this composer change.</p>
+          <p>Translation applied to the composer. Undo is available for the most recent manual change.</p>
           <button onClick={() => void handlers.onUndo?.()} type="button">
             {model.undoLabel}
           </button>

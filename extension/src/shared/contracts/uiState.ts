@@ -201,6 +201,14 @@ export const translationUiStateSchema = z
     canHide: z.boolean(),
     originalVisible: z.boolean(),
     translationVisible: z.boolean(),
+    ownerLabel: z.string().trim().min(1).optional(),
+    statusText: z.string().trim().min(1).optional(),
+    requestActionLabel: z.string().trim().min(1).nullable().optional(),
+    copyLabel: z.string().trim().min(1).nullable().optional(),
+    retryLabel: z.string().trim().min(1).nullable().optional(),
+    toggleLabel: z.string().trim().min(1).nullable().optional(),
+    hideLabel: z.string().trim().min(1).nullable().optional(),
+    surfaceDescription: z.string().trim().min(1).nullable().optional(),
     surfaceStatus: surfaceStatusSchema.optional(),
     activeBadges: z.array(stateBadgeSchema).max(4).optional(),
     diagnosticsLinkVisible: z.boolean().optional(),
@@ -228,9 +236,16 @@ export const manualPreviewStateSchema = z
       "dropped"
     ]),
     targetLabel: z.string().trim().min(1).optional(),
+    targetDescription: z.string().trim().min(1).optional(),
+    requestSummary: z.string().trim().min(1).optional(),
+    statusText: z.string().trim().min(1).optional(),
     applyLabel: z.string().trim().min(1).nullable().optional(),
+    retryLabel: z.string().trim().min(1).nullable().optional(),
+    copyLabel: z.string().trim().min(1).optional(),
+    undoLabel: z.string().trim().min(1).optional(),
     staleReason: z.string().trim().min(1).nullable().optional(),
-    draftProtectionVisible: z.boolean().optional()
+    draftProtectionVisible: z.boolean().optional(),
+    draftProtectionSummary: z.string().trim().min(1).nullable().optional()
   })
   .strict();
 
