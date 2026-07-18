@@ -1,4 +1,4 @@
-﻿// @vitest-environment jsdom
+// @vitest-environment jsdom
 import { render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
@@ -43,27 +43,38 @@ describe("settings keyboard accessibility", () => {
     expect(document.activeElement).toBe(incomingMode);
   });
 
-  it("keeps options navigation and save actions focusable by keyboard", () => {
+  it("keeps options navigation, resume setup, and save actions focusable by keyboard", () => {
     render(
       <OptionsApp
-        activeSection="translation"
+        activeSection="general"
+        destructiveActionPending={null}
         draftSettings={defaultUserSettings}
+        diagnosticsPreview={null}
+        diagnosticsStatusMessage={null}
+        localDataStatusMessage={null}
         onCancel={vi.fn()}
         onFieldChange={vi.fn()}
+        onRequestDestructiveAction={vi.fn()}
+        onResumeOnboarding={vi.fn()}
         onSave={vi.fn()}
         onSectionChange={vi.fn()}
         providerHealth={createUnknownProviderHealth("codex")}
         saveState="dirty"
+        savedSettings={defaultUserSettings}
         shortcutStatus={createDefaultShortcutStatusModel()}
         validationMessages={{}}
       />
     );
 
-    const navigationButton = screen.getByRole("button", { name: /translation/i });
+    const navigationButton = screen.getByRole("button", { name: /general/i });
+    const resumeButton = screen.getByRole("button", { name: /resume onboarding/i });
     const saveButton = screen.getByRole("button", { name: /save changes/i });
 
     navigationButton.focus();
     expect(document.activeElement).toBe(navigationButton);
+
+    resumeButton.focus();
+    expect(document.activeElement).toBe(resumeButton);
 
     saveButton.focus();
     expect(document.activeElement).toBe(saveButton);

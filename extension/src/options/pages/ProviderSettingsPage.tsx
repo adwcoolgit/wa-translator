@@ -1,39 +1,60 @@
 import React from "react";
 
-import type { ProviderHealth } from "../../domain/provider/providerHealth";
+import { alignProviderHealthToProvider } from "../../domain/provider/providerHealth";
 import {
-  getLifecycleSummary,
+  getAutoDetectedPathSummary,
+  getLastHealthResultLabel,
+  getProviderOverrideState,
+  getProviderStatusLabel,
   providerOptions,
   type SettingsValidationMessages
 } from "../../domain/settings/settingsViewModel";
 import type { UserSettings } from "../../domain/settings/userSettings";
+import { presentRecoverableError } from "../../shared/errors/recoverableErrorPresenter";
 import { en } from "../../shared/i18n/en";
+import type { ProviderHealth } from "../../domain/provider/providerHealth";
 
 export interface ProviderSettingsPageProps {
   providerHealth: ProviderHealth;
   settings: UserSettings;
   validationMessages: SettingsValidationMessages;
   onFieldChange: <K extends keyof UserSettings>(field: K, value: UserSettings[K]) => void;
+  onRunHealthCheck?: () => void;
 }
 
 export function ProviderSettingsPage({
   providerHealth,
   settings,
   validationMessages,
-  onFieldChange
+  onFieldChange,
+  onRunHealthCheck
 }: ProviderSettingsPageProps) {
+  const alignedProviderHealth = alignProviderHealthToProvider(settings.providerActive, providerHealth);
+  const overrideState = getProviderOverrideState(settings);
+  const recoverableError = alignedProviderHealth.lastSanitizedError
+    ? presentRecoverableError(alignedProviderHealth.lastSanitizedError)
+    : null;
+
   return (
     <section aria-labelledby="provider-settings-title">
       <h2 id="provider-settings-title">{en.options.sections.provider}</h2>
       <p>{en.options.providerDescription}</p>
       <dl>
         <div>
-          <dt>{en.options.lifecycleLabel}</dt>
-          <dd>{getLifecycleSummary(providerHealth)}</dd>
+          <dt>{en.options.providerStatusLabel}</dt>
+          <dd>{getProviderStatusLabel(alignedProviderHealth.state)}</dd>
         </div>
         <div>
-          <dt>{en.options.providerStatusLabel}</dt>
-          <dd>{providerHealth.lastSanitizedError?.supportCode ?? en.providerStates[providerHealth.state]}</dd>
+          <dt>Last health result</dt>
+          <dd>{getLastHealthResultLabel(alignedProviderHealth)}</dd>
+        </div>
+        <div>
+          <dt>{en.options.autoDetectedPathLabel}</dt>
+          <dd>{getAutoDetectedPathSummary(settings.providerActive)}</dd>
+        </div>
+        <div>
+          <dt>{en.options.safeProfileLabel}</dt>
+          <dd>Translation-only execution profile. No auto-send or raw chat persistence.</dd>
         </div>
       </dl>
 
@@ -56,16 +77,22 @@ export function ProviderSettingsPage({
         </label>
 
         <label>
-          {en.options.providerProfileLabel}
+          {en.options.manualOverrideLabel}
           <input
-            aria-label={en.options.providerProfileLabel}
+            aria-invalid={validationMessages.providerExecutablePathOverride ? "true" : "false"}
+            aria-label={en.options.manualOverrideLabel}
             onChange={(event) => {
-              onFieldChange("providerProfile", event.currentTarget.value.trim() ? event.currentTarget.value : null);
+              onFieldChange(
+                "providerExecutablePathOverride",
+                event.currentTarget.value.trim() ? event.currentTarget.value.trim() : null
+              );
             }}
+            placeholder="C:\Tools\provider.exe"
             type="text"
-            value={settings.providerProfile ?? ""}
+            value={settings.providerExecutablePathOverride ?? ""}
           />
         </label>
+        <p>Leave the manual override blank to keep using the auto-detected executable path.</p>
 
         <label>
           {en.options.providerTimeoutLabel}
@@ -109,6 +136,24 @@ export function ProviderSettingsPage({
           />
         </label>
       </div>
+
+      <section aria-labelledby="provider-validation-title">
+        <h3 id="provider-validation-title">{en.options.validationActionsLabel}</h3>
+        <p>
+          Manual override state: <strong>{overrideState}</strong>
+        </p>
+        {validationMessages.providerExecutablePathOverride ? (
+          <p role="alert">Choose an absolute executable path ending in .cmd, .exe, .bat, .ps1, or .sh.</p>
+        ) : null}
+        {recoverableError ? (
+          <p>
+            {recoverableError.title}: {recoverableError.body}
+          </p>
+        ) : null}
+        <button onClick={onRunHealthCheck} type="button">
+          Run synthetic health check
+        </button>
+      </section>
     </section>
   );
 }

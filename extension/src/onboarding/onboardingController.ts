@@ -1,4 +1,4 @@
-﻿import { createUnknownProviderHealth, providerHealthSchema, type ProviderHealth } from "../domain/provider/providerHealth";
+import { createUnknownProviderHealth, providerHealthSchema, type ProviderHealth } from "../domain/provider/providerHealth";
 import { createSettingsRepository, type SettingsRepository } from "../domain/settings/settingsRepository";
 import { DEFAULT_PRIVACY_CONSENT_VERSION, createDefaultUserSettings, type UserSettings } from "../domain/settings/userSettings";
 import { createSetupDiagnosticsRecorder, type SetupDiagnosticsRecorder } from "../diagnostics/setupDiagnostics";
@@ -76,6 +76,9 @@ const getPreviousStep = (step: OnboardingStep): OnboardingStep =>
 
 const restoreOnboardingStep = (step: OnboardingStep): OnboardingStep =>
   step === "ready" ? "preferences" : step;
+
+const shouldRefreshLifecycleOnInitialize = (step: OnboardingStep): boolean =>
+  ONBOARDING_STEPS.indexOf(step) >= ONBOARDING_STEPS.indexOf("companion");
 
 const canContinueForStep = (viewModel: OnboardingViewModel): boolean => {
   switch (viewModel.onboarding.currentStep) {
@@ -174,6 +177,15 @@ export class OnboardingController {
     this.viewModel.onboarding.consentAccepted = consentAccepted;
     this.viewModel.onboarding.syntheticHealthCheckOnly = true;
     this.viewModel.providerHealth[settings.providerActive] = createUnknownProviderHealth(settings.providerActive);
+
+    if (!isComplete && shouldRefreshLifecycleOnInitialize(currentStep)) {
+      try {
+        this.viewModel.lifecycle = await this.runtimeBridge.queryLifecycle();
+      } catch {
+        this.viewModel.lifecycle = createDefaultLifecycleResult();
+      }
+    }
+
     this.viewModel.onboarding.providerStatus = this.viewModel.providerHealth[settings.providerActive].state;
     this.viewModel.onboarding.lifecycleState = this.viewModel.lifecycle.state;
     this.viewModel.onboarding.canContinue = canContinueForStep(this.viewModel);
@@ -192,6 +204,7 @@ export class OnboardingController {
   public setProvider(provider: ProviderId): void {
     this.viewModel.settings.providerActive = provider;
     this.viewModel.onboarding.providerStatus = this.viewModel.providerHealth[provider].state;
+    void this.saveOnboardingProgress();
     this.recomputeState();
   }
 
@@ -203,6 +216,7 @@ export class OnboardingController {
       ...this.viewModel.settings,
       [key]: value
     };
+    void this.saveOnboardingProgress();
     this.recomputeState();
   }
 
@@ -347,7 +361,13 @@ export class OnboardingController {
       onboardingProgress: {
         currentStep: persistedStep,
         consentAccepted: this.viewModel.onboarding.consentAccepted
-      }
+      },
+      providerActive: this.viewModel.settings.providerActive,
+      sourceLanguage: this.viewModel.settings.sourceLanguage,
+      targetLanguage: this.viewModel.settings.targetLanguage,
+      styleId: this.viewModel.settings.styleId,
+      incomingMode: this.viewModel.settings.incomingMode,
+      manualMode: this.viewModel.settings.manualMode
     });
   }
 }

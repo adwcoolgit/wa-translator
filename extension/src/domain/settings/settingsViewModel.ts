@@ -1,10 +1,11 @@
-﻿import type { ProviderHealth } from "../provider/providerHealth";
+import type { ProviderHealth } from "../provider/providerHealth";
 import { alignProviderHealthToProvider } from "../provider/providerHealth";
 import {
   optionsStateSchema,
   popupStateSchema,
   type OptionsSaveState,
   type PopupState,
+  type ProviderPresentationState,
   type ProviderStatus,
   type StateBadge,
   type StateBadgeTone,
@@ -92,6 +93,13 @@ const STYLE_IDS = [
 const INCOMING_MODE_IDS = ["inline", "tooltip", "onDemand", "off"] as const;
 const STARTUP_BEHAVIOR_IDS = ["restoreLastEnabled", "startDisabled"] as const;
 const RECENT_TARGET_LANGUAGE_LIMIT = 5;
+const providerExecutablePathPattern = /^(?:[A-Za-z]:\\|\/).+\.(?:cmd|exe|bat|ps1|sh)$/i;
+const providerHealthValidationFields = new Set<keyof UserSettings>([
+  "sourceLanguage",
+  "targetLanguage",
+  "providerExecutablePathOverride",
+  "providerTimeoutSeconds"
+]);
 const DIAGNOSTIC_PROVIDER_STATUSES: readonly ProviderStatus[] = [
   "missing",
   "authRequired",
@@ -119,6 +127,7 @@ const comparableSettingsFields: readonly (keyof UserSettings)[] = [
   "undoSeconds",
   "providerActive",
   "providerProfile",
+  "providerExecutablePathOverride",
   "providerTimeoutSeconds",
   "queueMaxPending",
   "providerConcurrency",
@@ -221,6 +230,17 @@ export const getStartupBehaviorLabel = (
 
 export const getProviderStatusLabel = (status: ProviderStatus): string => en.providerStates[status];
 
+export const getLastHealthResultLabel = (providerHealth: ProviderHealth): string => {
+  if (providerHealth.lastCheckedAt === null) {
+    return "Not checked yet";
+  }
+
+  const statusLabel = getProviderStatusLabel(providerHealth.state);
+  return providerHealth.lastLatencyBucket
+    ? `${statusLabel} (${providerHealth.lastLatencyBucket})`
+    : statusLabel;
+};
+
 export const getPopupSetupState = (settings: UserSettings): PopupSetupState => {
   if (settings.onboardingStatus === "complete") {
     return "ready";
@@ -232,6 +252,47 @@ export const getPopupSetupState = (settings: UserSettings): PopupSetupState => {
 
   return "required";
 };
+
+export const getSetupStatusLabel = (
+  settings: Pick<UserSettings, "onboardingStatus" | "onboardingProgress">
+): string => {
+  switch (settings.onboardingStatus) {
+    case "complete":
+      return "Complete";
+    case "blocked":
+      return "Blocked";
+    case "inProgress":
+      return `In progress (${settings.onboardingProgress.currentStep})`;
+    default:
+      return "Not started";
+  }
+};
+
+export const getAutoDetectedPathSummary = (provider: UserSettings["providerActive"]): string =>
+  provider === "codex"
+    ? "Auto-detect from PATH using codex, codex.cmd, or codex.exe."
+    : "Auto-detect from PATH using claude, claude.cmd, or claude.exe.";
+
+export const getProviderOverrideState = (
+  settings: Pick<UserSettings, "providerExecutablePathOverride">
+): ProviderPresentationState["manualOverrideState"] => {
+  if (!settings.providerExecutablePathOverride) {
+    return "none";
+  }
+
+  return providerExecutablePathPattern.test(settings.providerExecutablePathOverride)
+    ? "configured"
+    : "invalid";
+};
+
+export const getProviderHealthValidationMessages = (
+  validationMessages: SettingsValidationMessages
+): SettingsValidationMessages =>
+  Object.fromEntries(
+    Object.entries(validationMessages).filter(([field]) =>
+      providerHealthValidationFields.has(field as keyof UserSettings)
+    )
+  );
 
 export const shouldShowPopupDiagnostics = (providerHealth: ProviderHealth): boolean =>
   providerHealth.lastSanitizedError !== null || DIAGNOSTIC_PROVIDER_STATUSES.includes(providerHealth.state);
@@ -475,8 +536,8 @@ export const buildPopupState = (input: {
     providerSummary: {
       selectedProvider: input.settings.providerActive,
       readiness: providerHealth.state,
-      autoDetectedPathSummary: null,
-      manualOverrideState: "none",
+      autoDetectedPathSummary: getAutoDetectedPathSummary(input.settings.providerActive),
+      manualOverrideState: getProviderOverrideState(input.settings),
       lastHealthCategory: providerHealth.lastLatencyBucket,
       safeProfileSummary: en.popup.safeProfileSummary,
       availableActions: diagnosticsAttentionRequired
@@ -587,3 +648,4 @@ export const createPartialSettingsPatch = (
     ? createTargetLanguageSettingsPatch(currentSettings, update.targetLanguage)
     : {})
 });
+

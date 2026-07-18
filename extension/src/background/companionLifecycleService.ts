@@ -31,7 +31,7 @@ const buildRequestId = (prefix: string): string =>
 
 export const buildSyntheticHealthCheckMessage = (
   provider: ProviderId,
-  settings: Pick<UserSettings, "sourceLanguage" | "targetLanguage" | "providerTimeoutSeconds">
+    settings: Pick<UserSettings, "sourceLanguage" | "targetLanguage" | "providerTimeoutSeconds" | "providerExecutablePathOverride">
 ) => ({
   type: "providerHealthCheckRequest" as const,
   protocolVersion: NATIVE_MESSAGING_PROTOCOL_VERSION,
@@ -41,6 +41,7 @@ export const buildSyntheticHealthCheckMessage = (
     syntheticText: SYNTHETIC_HEALTH_CHECK_TEXT,
     sourceLanguage: settings.sourceLanguage,
     targetLanguage: settings.targetLanguage,
+    executablePathOverride: settings.providerExecutablePathOverride,
     timeoutSeconds: settings.providerTimeoutSeconds
   }
 });
@@ -303,7 +304,7 @@ export class CompanionLifecycleService {
 
   public async runSyntheticProviderHealthCheck(
     provider: ProviderId,
-    settings: Pick<UserSettings, "sourceLanguage" | "targetLanguage" | "providerTimeoutSeconds">
+    settings: Pick<UserSettings, "sourceLanguage" | "targetLanguage" | "providerTimeoutSeconds" | "providerExecutablePathOverride">
   ): Promise<ProviderHealth> {
     const lifecycle = await this.queryLifecycle();
     if (lifecycle.state !== "ready") {
@@ -361,3 +362,5 @@ export const createCompanionLifecycleService = (
   createPort?: NativeConnectionFactory,
   applicationName?: string
 ): CompanionLifecycleService => new CompanionLifecycleService(createPort, applicationName);
+
+

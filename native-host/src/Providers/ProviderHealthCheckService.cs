@@ -10,6 +10,7 @@ public sealed record ProviderHealthCheckRequest(
     string SyntheticText,
     string SourceLanguage,
     string TargetLanguage,
+    string? ExecutablePathOverride,
     int TimeoutSeconds);
 
 public sealed record ProviderHealthError(
@@ -73,7 +74,7 @@ public sealed class ProviderHealthCheckService
             return CreateOverriddenResult(request, provider, overrideState!, startedAt);
         }
 
-        if (!TryResolveExecutable(provider, out var executablePath))
+        if (!TryResolveExecutable(request, provider, out var executablePath))
         {
             return CreateErrorResult(request, provider, new ProviderErrorNormalizer().NormalizeMissingExecutable(), startedAt);
         }
@@ -383,8 +384,14 @@ Sentence:
         return (int)Math.Max(0, elapsed.TotalMilliseconds);
     }
 
-    private static bool TryResolveExecutable(string provider, out string? executablePath)
+    private static bool TryResolveExecutable(ProviderHealthCheckRequest request, string provider, out string? executablePath)
     {
+        if (!string.IsNullOrWhiteSpace(request.ExecutablePathOverride))
+        {
+            executablePath = request.ExecutablePathOverride.Trim();
+            return File.Exists(executablePath);
+        }
+
         var overrideVariableName = $"WA_TRANSLATOR_{provider.ToUpperInvariant()}_EXECUTABLE";
         var overrideExecutable = Environment.GetEnvironmentVariable(overrideVariableName);
         if (!string.IsNullOrWhiteSpace(overrideExecutable))
@@ -448,4 +455,5 @@ Sentence:
         }
     }
 }
+
 

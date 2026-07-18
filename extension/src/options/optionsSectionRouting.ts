@@ -14,10 +14,10 @@ const OPTION_SECTION_IDS = [
 export const parseOptionsSectionFromHash = (hash: string): OptionsSectionId => {
   const section = hash.replace(/^#/, "");
   if (section === "advanced") {
-    return isAdvancedSettingsVisible() ? "advanced" : "translation";
+    return isAdvancedSettingsVisible() ? "advanced" : "general";
   }
 
   return OPTION_SECTION_IDS.includes(section as (typeof OPTION_SECTION_IDS)[number])
     ? (section as (typeof OPTION_SECTION_IDS)[number])
-    : "translation";
+    : "general";
 };

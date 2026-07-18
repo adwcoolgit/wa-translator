@@ -13,15 +13,15 @@ const LIFECYCLE_COPY: Record<NativeLifecycleResult["state"], { label: string; de
   },
   downloadAvailable: {
     label: "Download available",
-    description: "Companion package is available and waiting for installation."
+    description: "Companion package is available, but installation still needs to be completed locally."
   },
   downloadStarted: {
     label: "Download started",
-    description: "Companion download has started. Wait until installation completes."
+    description: "The package download has started. Wait for installation before continuing."
   },
   waitingForInstallation: {
     label: "Waiting for installation",
-    description: "Installer has not completed yet. Continue after the companion is registered."
+    description: "The installer has not completed yet. Continue only after Chrome can detect the registered companion."
   },
   ready: {
     label: "Companion ready",
@@ -29,7 +29,7 @@ const LIFECYCLE_COPY: Record<NativeLifecycleResult["state"], { label: string; de
   },
   incompatible: {
     label: "Companion outdated",
-    description: "Update the local companion so the protocol and extension version match."
+    description: "Update the local companion so the protocol and extension version match again."
   },
   registrationFailed: {
     label: "Registration failed",
@@ -37,7 +37,7 @@ const LIFECYCLE_COPY: Record<NativeLifecycleResult["state"], { label: string; de
   },
   permissionIssue: {
     label: "Permission issue",
-    description: "Chrome can see the companion, but permission or access checks blocked the connection."
+    description: "Chrome can see the companion, but a permission or access check blocked the connection."
   },
   integrityFailed: {
     label: "Integrity failed",
@@ -45,7 +45,7 @@ const LIFECYCLE_COPY: Record<NativeLifecycleResult["state"], { label: string; de
   },
   uninstallRequired: {
     label: "Uninstall required",
-    description: "A clean uninstall is required before the companion can be reinstalled safely."
+    description: "Remove the current installation cleanly before reinstalling the companion."
   }
 };
 
@@ -75,7 +75,7 @@ export function CompanionStatusCard({
         </div>
         <div>
           <dt>Recovery action</dt>
-          <dd>{lifecycle.recoveryAction ?? "None"}</dd>
+          <dd>{lifecycle.recoveryAction ?? "No recovery action required"}</dd>
         </div>
       </dl>
       <button disabled={loading} onClick={() => void onRefresh()} type="button">

@@ -1,5 +1,13 @@
 import React, { startTransition, useEffect, useEffectEvent, useState } from "react";
 
+import {
+  getIncomingModeLabel,
+  getLanguageLabel,
+  getStyleLabel,
+  incomingModeOptions,
+  sourceLanguageOptions,
+  styleOptions
+} from "../domain/settings/settingsViewModel";
 import { createOnboardingController, type OnboardingController, type OnboardingViewModel } from "./onboardingController";
 import { CompanionStatusCard } from "./components/CompanionStatusCard";
 import { PrivacyDisclosure } from "./components/PrivacyDisclosure";
@@ -16,6 +24,15 @@ const STEP_TITLES: Record<OnboardingViewModel["onboarding"]["currentStep"], stri
   provider: "Provider",
   preferences: "Preferences",
   ready: "Ready"
+};
+
+const STEP_ACTION_LABELS: Record<OnboardingViewModel["onboarding"]["currentStep"], string> = {
+  welcome: "Review privacy",
+  privacy: "Continue to companion",
+  companion: "Continue to provider",
+  provider: "Continue to preferences",
+  preferences: "Save preferences",
+  ready: "Finish setup"
 };
 
 const syncViewModel = (
@@ -52,8 +69,8 @@ export function OnboardingApp({ controller = createOnboardingController() }: Onb
         <p className="eyebrow">WA Translator setup</p>
         <h1>First-time setup and trust</h1>
         <p>
-          Siapkan local companion, pilih provider, dan verifikasi health check synthetic sebelum
-          WA Translator dapat memproses terjemahan apa pun.
+          Set up the local companion, confirm the privacy boundary, and finish a synthetic provider
+          health check before WA Translator can process any translation request.
         </p>
       </header>
 
@@ -75,11 +92,11 @@ export function OnboardingApp({ controller = createOnboardingController() }: Onb
         <section className="onboarding-content">
           {currentStep === "welcome" ? (
             <section aria-labelledby="welcome-title" className="onboarding-card">
-              <h2 id="welcome-title">Start with safe defaults</h2>
+              <h2 id="welcome-title">Welcome to WA Translator</h2>
               <p>
-                WA Translator bekerja di WhatsApp Web pada Chrome desktop, Windows-first, dan
-                tidak pernah auto-send. Setup ini memblokir akses provider sampai disclosure,
-                companion, dan health check selesai.
+                WA Translator works in WhatsApp Web on Chrome desktop and keeps the original chat
+                intact. Automatic and manual translation remain reversible, and no setup step can
+                reach the provider before you review the trust disclosure.
               </p>
             </section>
           ) : null}
@@ -118,28 +135,41 @@ export function OnboardingApp({ controller = createOnboardingController() }: Onb
           {currentStep === "preferences" ? (
             <section aria-labelledby="preferences-title" className="onboarding-card">
               <h2 id="preferences-title">Initial preferences</h2>
+              <p>Choose safe defaults now. You can refine them later in Settings with explicit Save changes.</p>
               <div className="preferences-grid">
                 <label>
                   Source language
-                  <input
+                  <select
                     onChange={(event) => {
                       controller.updatePreference("sourceLanguage", event.currentTarget.value);
                       refreshFromController();
                     }}
-                    type="text"
                     value={viewModel.settings.sourceLanguage}
-                  />
+                  >
+                    {sourceLanguageOptions.map((option) => (
+                      <option key={option.value} value={option.value}>
+                        {option.label}
+                      </option>
+                    ))}
+                  </select>
                 </label>
                 <label>
                   Target language
-                  <input
+                  <select
                     onChange={(event) => {
                       controller.updatePreference("targetLanguage", event.currentTarget.value);
                       refreshFromController();
                     }}
-                    type="text"
                     value={viewModel.settings.targetLanguage}
-                  />
+                  >
+                    {sourceLanguageOptions
+                      .filter((option) => option.value !== "auto")
+                      .map((option) => (
+                        <option key={option.value} value={option.value}>
+                          {option.label}
+                        </option>
+                      ))}
+                  </select>
                 </label>
                 <label>
                   Style
@@ -150,13 +180,13 @@ export function OnboardingApp({ controller = createOnboardingController() }: Onb
                     }}
                     value={viewModel.settings.styleId}
                   >
-                    <option value="neutral">Neutral</option>
-                    <option value="formal">Formal</option>
-                    <option value="casual">Casual</option>
-                    <option value="friendly">Friendly</option>
-                    <option value="professional">Professional</option>
-                    <option value="concise">Concise</option>
-                    <option value="polite">Polite</option>
+                    {styleOptions
+                      .filter((option) => option.value !== "custom")
+                      .map((option) => (
+                        <option key={option.value} value={option.value}>
+                          {option.label}
+                        </option>
+                      ))}
                   </select>
                 </label>
                 <label>
@@ -168,10 +198,11 @@ export function OnboardingApp({ controller = createOnboardingController() }: Onb
                     }}
                     value={viewModel.settings.incomingMode}
                   >
-                    <option value="inline">Inline</option>
-                    <option value="tooltip">Tooltip</option>
-                    <option value="onDemand">On demand</option>
-                    <option value="off">Off</option>
+                    {incomingModeOptions.map((option) => (
+                      <option key={option.value} value={option.value}>
+                        {option.label}
+                      </option>
+                    ))}
                   </select>
                 </label>
                 <label>
@@ -195,9 +226,9 @@ export function OnboardingApp({ controller = createOnboardingController() }: Onb
             <section aria-labelledby="ready-title" className="onboarding-card">
               <h2 id="ready-title">Setup is ready</h2>
               <p>
-                Consent sudah diterima, companion sudah siap, dan provider health check synthetic
-                sudah lolos. Setelah Anda menyelesaikan langkah ini, WA Translator boleh memproses
-                permintaan terjemahan sesuai pengaturan awal Anda.
+                Consent is stored, the local companion is ready, and the provider passed the
+                synthetic health check. Finish setup, then open WhatsApp Web to start using the
+                saved defaults below.
               </p>
               <dl>
                 <div>
@@ -206,13 +237,22 @@ export function OnboardingApp({ controller = createOnboardingController() }: Onb
                 </div>
                 <div>
                   <dt>Target language</dt>
-                  <dd>{viewModel.settings.targetLanguage}</dd>
+                  <dd>{getLanguageLabel(viewModel.settings.targetLanguage)}</dd>
+                </div>
+                <div>
+                  <dt>Style</dt>
+                  <dd>{getStyleLabel(viewModel.settings.styleId)}</dd>
                 </div>
                 <div>
                   <dt>Incoming mode</dt>
-                  <dd>{viewModel.settings.incomingMode}</dd>
+                  <dd>{getIncomingModeLabel(viewModel.settings.incomingMode)}</dd>
                 </div>
               </dl>
+              <p>
+                <a href="https://web.whatsapp.com/" rel="noreferrer" target="_blank">
+                  Open WhatsApp Web
+                </a>
+              </p>
             </section>
           ) : null}
 
@@ -234,7 +274,7 @@ export function OnboardingApp({ controller = createOnboardingController() }: Onb
               }}
               type="button"
             >
-              {currentStep === "ready" ? "Finish setup" : "Continue"}
+              {STEP_ACTION_LABELS[currentStep]}
             </button>
           </footer>
         </section>

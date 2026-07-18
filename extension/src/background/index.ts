@@ -68,6 +68,19 @@ if (typeof chrome !== "undefined" && chrome.runtime?.onMessage) {
             payload: await companionLifecycleService.queryLifecycle()
           });
           break;
+        case "onboarding.queryStatus": {
+          const settings = await settingsRepository.load();
+          sendResponse({
+            type: "onboarding.queryStatus.result",
+            payload: {
+              onboardingStatus: settings.onboardingStatus,
+              onboardingProgress: settings.onboardingProgress,
+              privacyConsentVersion: settings.privacyConsentVersion,
+              providerActive: settings.providerActive
+            }
+          });
+          break;
+        }
         case "onboarding.runHealthCheck":
           sendResponse({
             type: "onboarding.runHealthCheck.result",
@@ -87,3 +100,4 @@ if (typeof chrome !== "undefined" && chrome.runtime?.onMessage) {
     return true;
   });
 }
+

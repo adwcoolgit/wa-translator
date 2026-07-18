@@ -3,7 +3,6 @@ import { describe, expect, it } from "vitest";
 import { DiagnosticsCollector } from "../../../src/diagnostics/diagnosticsCollector";
 import {
   createLocalDataActions,
-  createChromeSessionStorageArea,
   getLocalDataActionDefinition,
   listLocalDataActionDefinitions
 } from "../../../src/domain/settings/localDataActions";

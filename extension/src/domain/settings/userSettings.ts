@@ -12,6 +12,9 @@ export const DEFAULT_PRIVACY_CONSENT_VERSION = "2026-07-14-v0.2";
 
 export const startupBehaviorSchema = z.enum(["restoreLastEnabled", "startDisabled"]);
 export const recentTargetLanguageSchema = z.enum(["id", "en", "ms", "zh-CN", "ja", "ko", "ar", "es"]);
+export const providerExecutablePathOverrideSchema = z.string().trim().min(3).max(260).nullable();
+
+const providerExecutablePathPattern = /^(?:[A-Za-z]:\\|\/).+\.(?:cmd|exe|bat|ps1|sh)$/i;
 
 export const customStyleSchema = z
   .object({
@@ -59,6 +62,7 @@ export const userSettingsSchema = z
     undoSeconds: z.number().int().min(5).max(60),
     providerActive: z.enum(["codex", "claude"]),
     providerProfile: z.string().trim().min(1).max(120).nullable(),
+    providerExecutablePathOverride: providerExecutablePathOverrideSchema,
     providerTimeoutSeconds: z.number().int().min(5).max(120),
     queueMaxPending: z.number().int().min(1).max(100),
     providerConcurrency: z.number().int().min(1).max(5),
@@ -82,6 +86,17 @@ export const userSettingsSchema = z
         code: z.ZodIssueCode.custom,
         message: "targetLanguage must remain inside the MVP language set",
         path: ["targetLanguage"]
+      });
+    }
+
+    if (
+      value.providerExecutablePathOverride !== null &&
+      !providerExecutablePathPattern.test(value.providerExecutablePathOverride)
+    ) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "providerExecutablePathOverride must be an absolute executable path",
+        path: ["providerExecutablePathOverride"]
       });
     }
   });
@@ -112,6 +127,7 @@ export const defaultUserSettings: UserSettings = {
   undoSeconds: 15,
   providerActive: "codex",
   providerProfile: null,
+  providerExecutablePathOverride: null,
   providerTimeoutSeconds: 30,
   queueMaxPending: 50,
   providerConcurrency: 2,
