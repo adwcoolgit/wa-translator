@@ -1,4 +1,7 @@
-export const CURRENT_USER_SETTINGS_SCHEMA_VERSION = 2;
+﻿export const CURRENT_USER_SETTINGS_SCHEMA_VERSION = 3;
+
+const SUPPORTED_TARGET_LANGUAGE_CODES = new Set(["id", "en", "ms", "zh-CN", "ja", "ko", "ar", "es"]);
+const MAX_RECENT_TARGET_LANGUAGES = 5;
 
 const toRecord = (input: unknown): Record<string, unknown> =>
   input && typeof input === "object" && !Array.isArray(input)
@@ -20,6 +23,26 @@ const coerceIntegerField = (
   }
 };
 
+const normalizeRecentTargetLanguages = (value: unknown): string[] | undefined => {
+  if (!Array.isArray(value)) {
+    return undefined;
+  }
+
+  const sanitized: string[] = [];
+  for (const entry of value) {
+    if (typeof entry !== "string" || !SUPPORTED_TARGET_LANGUAGE_CODES.has(entry) || sanitized.includes(entry)) {
+      continue;
+    }
+
+    sanitized.push(entry);
+    if (sanitized.length === MAX_RECENT_TARGET_LANGUAGES) {
+      break;
+    }
+  }
+
+  return sanitized;
+};
+
 export const migrateUserSettingsInput = (input: unknown): Record<string, unknown> => {
   const migrated = toRecord(input);
 
@@ -34,9 +57,42 @@ export const migrateUserSettingsInput = (input: unknown): Record<string, unknown
   if (typeof migrated.telemetryEnabled !== "boolean" && typeof migrated.telemetryOptIn === "boolean") {
     migrated.telemetryEnabled = migrated.telemetryOptIn;
   }
+  delete migrated.telemetryOptIn;
 
   if (typeof migrated.providerProfile !== "string" && typeof migrated.providerModelLabel === "string") {
     migrated.providerProfile = migrated.providerModelLabel;
+  }
+  delete migrated.providerModelLabel;
+
+  if (typeof migrated.startupBehavior !== "string") {
+    if (migrated.restoreEnabledOnStartup === false) {
+      migrated.startupBehavior = "startDisabled";
+    }
+
+    if (migrated.restoreEnabledOnStartup === true) {
+      migrated.startupBehavior = "restoreLastEnabled";
+    }
+  }
+  delete migrated.restoreEnabledOnStartup;
+
+  if (migrated.startupBehavior === "restoreLastSessionEnabled") {
+    migrated.startupBehavior = "restoreLastEnabled";
+  }
+
+  const recentTargetLanguages = normalizeRecentTargetLanguages(
+    migrated.recentTargetLanguages ?? migrated.recentLanguages
+  );
+  if (recentTargetLanguages) {
+    migrated.recentTargetLanguages = recentTargetLanguages;
+  }
+  delete migrated.recentLanguages;
+
+  if (
+    typeof migrated.targetLanguage === "string" &&
+    migrated.targetLanguage !== "auto" &&
+    !SUPPORTED_TARGET_LANGUAGE_CODES.has(migrated.targetLanguage)
+  ) {
+    delete migrated.targetLanguage;
   }
 
   coerceIntegerField(migrated, "undoSeconds");

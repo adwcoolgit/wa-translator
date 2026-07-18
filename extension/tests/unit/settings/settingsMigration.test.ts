@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+﻿import { describe, expect, it } from "vitest";
 
 import {
   CURRENT_USER_SETTINGS_SCHEMA_VERSION,
@@ -15,7 +15,9 @@ describe("settings migration", () => {
       telemetryOptIn: true,
       providerTimeoutSeconds: "45",
       queueMaxPending: "20",
-      sessionCacheTtlMinutes: "30"
+      sessionCacheTtlMinutes: "30",
+      restoreEnabledOnStartup: false,
+      recentLanguages: ["ja", "en"]
     });
 
     expect(migrated.schemaVersion).toBe(CURRENT_USER_SETTINGS_SCHEMA_VERSION);
@@ -25,6 +27,8 @@ describe("settings migration", () => {
     expect(migrated.providerTimeoutSeconds).toBe(45);
     expect(migrated.queueMaxPending).toBe(20);
     expect(migrated.sessionCacheTtlMinutes).toBe(30);
+    expect(migrated.startupBehavior).toBe("startDisabled");
+    expect(migrated.recentTargetLanguages).toEqual(["ja", "en"]);
   });
 
   it("normalizes missing settings to safe defaults at the current schema version", () => {
@@ -38,5 +42,19 @@ describe("settings migration", () => {
     expect(settings.enabled).toBe(true);
     expect(settings.telemetryEnabled).toBe(false);
     expect(settings.incomingMode).toBe("inline");
+    expect(settings.startupBehavior).toBe("restoreLastEnabled");
+    expect(settings.recentTargetLanguages).toEqual([]);
+  });
+
+  it("sanitizes invalid legacy target language values before schema parsing", () => {
+    const settings = normalizeUserSettings({
+      schemaVersion: 1,
+      targetLanguage: "de",
+      recentLanguages: ["de", "ja", "en", "ja", "ko", "ar", "ms", "zh-CN"]
+    });
+
+    expect(settings.schemaVersion).toBe(CURRENT_USER_SETTINGS_SCHEMA_VERSION);
+    expect(settings.targetLanguage).toBe("id");
+    expect(settings.recentTargetLanguages).toEqual(["ja", "en", "ko", "ar", "ms"]);
   });
 });

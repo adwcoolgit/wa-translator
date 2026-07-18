@@ -1,4 +1,4 @@
-import React, { startTransition, useEffect, useEffectEvent, useMemo, useState } from "react";
+﻿import React, { startTransition, useEffect, useEffectEvent, useMemo, useState } from "react";
 import { createRoot } from "react-dom/client";
 
 import { CompanionLifecycleService } from "../background/companionLifecycleService";
@@ -10,6 +10,7 @@ import {
   buildShortcutStatusModel,
   buildValidationMessages,
   createDefaultShortcutStatusModel,
+  createPartialSettingsPatch,
   type OptionsSectionId,
   type ShortcutStatusModel
 } from "../domain/settings/settingsViewModel";
@@ -188,7 +189,9 @@ function App() {
         startTransition(() => {
           setDraftSettings((current) => ({
             ...current,
-            [field]: value
+            ...createPartialSettingsPatch(current, {
+              [field]: value
+            } as Partial<UserSettings>)
           }));
           setSaveState("dirty");
         });
@@ -248,4 +251,6 @@ const root = document.getElementById("root");
 if (root) {
   createRoot(root).render(<App />);
 }
+
+
 

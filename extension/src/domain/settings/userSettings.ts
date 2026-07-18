@@ -10,6 +10,9 @@ import {
 export const USER_SETTINGS_SCHEMA_VERSION = CURRENT_USER_SETTINGS_SCHEMA_VERSION;
 export const DEFAULT_PRIVACY_CONSENT_VERSION = "2026-07-14-v0.2";
 
+export const startupBehaviorSchema = z.enum(["restoreLastEnabled", "startDisabled"]);
+export const recentTargetLanguageSchema = z.enum(["id", "en", "ms", "zh-CN", "ja", "ko", "ar", "es"]);
+
 export const customStyleSchema = z
   .object({
     name: z.string().trim().min(1).max(80),
@@ -25,6 +28,18 @@ export const onboardingProgressSchema = z
   })
   .strict();
 
+export const recentTargetLanguagesSchema = z
+  .array(recentTargetLanguageSchema)
+  .max(5)
+  .superRefine((value, context) => {
+    if (new Set(value).size !== value.length) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "recentTargetLanguages must not contain duplicates"
+      });
+    }
+  });
+
 export const userSettingsSchema = z
   .object({
     schemaVersion: z.literal(USER_SETTINGS_SCHEMA_VERSION),
@@ -35,6 +50,8 @@ export const userSettingsSchema = z
     uiLanguage: z.string().trim().min(1),
     sourceLanguage: z.string().trim().min(1),
     targetLanguage: z.string().trim().min(1),
+    recentTargetLanguages: recentTargetLanguagesSchema,
+    startupBehavior: startupBehaviorSchema,
     styleId: styleIdSchema,
     customStyle: customStyleSchema.nullable(),
     incomingMode: z.enum(["inline", "tooltip", "onDemand", "off"]),
@@ -59,10 +76,20 @@ export const userSettingsSchema = z
         path: ["customStyle"]
       });
     }
+
+    if (value.targetLanguage !== "auto" && !recentTargetLanguageSchema.safeParse(value.targetLanguage).success) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "targetLanguage must remain inside the MVP language set",
+        path: ["targetLanguage"]
+      });
+    }
   });
 
 export type UserSettings = z.infer<typeof userSettingsSchema>;
 export type PartialUserSettings = Partial<UserSettings>;
+export type StartupBehavior = z.infer<typeof startupBehaviorSchema>;
+export type RecentTargetLanguage = z.infer<typeof recentTargetLanguageSchema>;
 
 export const defaultUserSettings: UserSettings = {
   schemaVersion: USER_SETTINGS_SCHEMA_VERSION,
@@ -76,6 +103,8 @@ export const defaultUserSettings: UserSettings = {
   uiLanguage: "id",
   sourceLanguage: "auto",
   targetLanguage: "id",
+  recentTargetLanguages: [],
+  startupBehavior: "restoreLastEnabled",
   styleId: "neutral",
   customStyle: null,
   incomingMode: "inline",
@@ -107,5 +136,5 @@ export const normalizeUserSettings = (input: unknown): UserSettings => {
 
 export const mergeUserSettings = (
   current: UserSettings,
-  update: PartialUserSettings
+  update: Partial<UserSettings>
 ): UserSettings => userSettingsSchema.parse({ ...current, ...update });
