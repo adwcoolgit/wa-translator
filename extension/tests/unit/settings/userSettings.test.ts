@@ -1,9 +1,8 @@
 import { describe, expect, it } from "vitest";
 
-import { mergeUserSettings } from "../../../src/domain/settings/userSettings";
-import { defaultUserSettings } from "../../../src/domain/settings/userSettings";
+import { defaultUserSettings, mergeUserSettings } from "../../../src/domain/settings/userSettings";
 
-describe("user settings custom style retention", () => {
+describe("user settings", () => {
   it("keeps the stored custom style when the active style switches away from custom", () => {
     const nextSettings = mergeUserSettings(
       {
@@ -26,5 +25,10 @@ describe("user settings custom style retention", () => {
       instruction: "Keep it concise and formal.",
       isValid: true
     });
+  });
+
+  it("includes startup behavior and recent target language defaults", () => {
+    expect(defaultUserSettings.startupBehavior).toBe("restoreLastEnabled");
+    expect(defaultUserSettings.recentTargetLanguages).toEqual([]);
   });
 });

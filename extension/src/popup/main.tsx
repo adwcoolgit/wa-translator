@@ -1,4 +1,4 @@
-import React, { startTransition, useEffect, useEffectEvent, useState } from "react";
+﻿import React, { startTransition, useEffect, useEffectEvent, useState } from "react";
 import { createRoot } from "react-dom/client";
 
 import { CompanionLifecycleService } from "../background/companionLifecycleService";
@@ -6,6 +6,7 @@ import { createUnknownProviderHealth, type ProviderHealth } from "../domain/prov
 import {
   buildShortcutStatusModel,
   createDefaultShortcutStatusModel,
+  createPartialSettingsPatch,
   type ShortcutStatusModel
 } from "../domain/settings/settingsViewModel";
 import { createSettingsRepository } from "../domain/settings/settingsRepository";
@@ -64,7 +65,7 @@ function App() {
   });
 
   const saveQuickSetting = useEffectEvent(async (update: Partial<UserSettings>) => {
-    const nextSettings = await settingsRepository.save(update);
+    const nextSettings = await settingsRepository.save(createPartialSettingsPatch(settings, update));
     startTransition(() => {
       setSettings(nextSettings);
     });
@@ -103,3 +104,5 @@ const root = document.getElementById("root");
 if (root) {
   createRoot(root).render(<App />);
 }
+
+

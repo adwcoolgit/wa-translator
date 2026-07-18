@@ -1,8 +1,18 @@
 import type { ProviderHealth } from "../provider/providerHealth";
-import { userSettingsSchema, type UserSettings } from "./userSettings";
-import { optionsStateSchema, type OptionsSaveState, type ProviderStatus } from "../../shared/contracts/uiState";
+import {
+  optionsStateSchema,
+  type OptionsSaveState,
+  type ProviderStatus
+} from "../../shared/contracts/uiState";
 import { isAdvancedSettingsVisible } from "../../shared/featureFlags/mvpFeatureFlags";
 import { en } from "../../shared/i18n/en";
+import {
+  type PartialUserSettings,
+  type RecentTargetLanguage,
+  recentTargetLanguageSchema,
+  userSettingsSchema,
+  type UserSettings
+} from "./userSettings";
 
 export type SelectOption = {
   value: string;
@@ -31,12 +41,36 @@ export type OptionsSectionId =
   | "diagnostics"
   | "advanced";
 
+export type OptionsSectionGroupId = "basic" | "system" | "support";
+
 export type OptionsSectionGroup = {
+  id: OptionsSectionGroupId;
   heading: string;
   sections: { id: OptionsSectionId; label: string }[];
 };
 
-const SUPPORTED_LANGUAGE_CODES = ["id", "en", "ms", "zh-CN", "ja", "ko", "ar", "es"] as const;
+export type RecentTargetLanguageEntry = {
+  code: RecentTargetLanguage;
+  label: string;
+};
+
+export type SettingsDraftState = {
+  saveState: OptionsSaveState;
+  hasUnsavedChanges: boolean;
+  changedFields: (keyof UserSettings)[];
+  changedFieldCount: number;
+};
+
+const SUPPORTED_TARGET_LANGUAGE_CODES = [
+  "id",
+  "en",
+  "ms",
+  "zh-CN",
+  "ja",
+  "ko",
+  "ar",
+  "es"
+] as const;
 const STYLE_IDS = [
   "neutral",
   "formal",
@@ -48,8 +82,38 @@ const STYLE_IDS = [
   "custom"
 ] as const;
 const INCOMING_MODE_IDS = ["inline", "tooltip", "onDemand", "off"] as const;
+const STARTUP_BEHAVIOR_IDS = ["restoreLastEnabled", "startDisabled"] as const;
+const RECENT_TARGET_LANGUAGE_LIMIT = 5;
+const comparableSettingsFields: readonly (keyof UserSettings)[] = [
+  "enabled",
+  "onboardingStatus",
+  "onboardingProgress",
+  "privacyConsentVersion",
+  "uiLanguage",
+  "sourceLanguage",
+  "targetLanguage",
+  "recentTargetLanguages",
+  "startupBehavior",
+  "styleId",
+  "customStyle",
+  "incomingMode",
+  "manualMode",
+  "undoSeconds",
+  "providerActive",
+  "providerProfile",
+  "providerTimeoutSeconds",
+  "queueMaxPending",
+  "providerConcurrency",
+  "sessionCacheEnabled",
+  "sessionCacheTtlMinutes",
+  "telemetryEnabled",
+  "promptContractVersion"
+];
 
-export const languageOptions: SelectOption[] = SUPPORTED_LANGUAGE_CODES.map((value) => ({
+const areSettingsValuesEqual = (left: unknown, right: unknown): boolean =>
+  JSON.stringify(left) === JSON.stringify(right);
+
+export const languageOptions: SelectOption[] = SUPPORTED_TARGET_LANGUAGE_CODES.map((value) => ({
   value,
   label: en.languages[value]
 }));
@@ -72,6 +136,11 @@ export const incomingModeOptions: SelectOption[] = INCOMING_MODE_IDS.map((value)
   label: en.incomingModes[value]
 }));
 
+export const startupBehaviorOptions: SelectOption[] = STARTUP_BEHAVIOR_IDS.map((value) => ({
+  value,
+  label: en.common.startupBehaviors[value]
+}));
+
 export const providerOptions: SelectOption[] = [
   { value: "codex", label: "Codex CLI" },
   { value: "claude", label: "Claude Code CLI" }
@@ -79,6 +148,7 @@ export const providerOptions: SelectOption[] = [
 
 export const optionsSectionGroups: OptionsSectionGroup[] = [
   {
+    id: "basic",
     heading: en.options.groups.basic,
     sections: [
       { id: "general", label: en.options.sections.general },
@@ -87,6 +157,7 @@ export const optionsSectionGroups: OptionsSectionGroup[] = [
     ]
   },
   {
+    id: "system",
     heading: en.options.groups.system,
     sections: [
       { id: "provider", label: en.options.sections.provider },
@@ -95,15 +166,27 @@ export const optionsSectionGroups: OptionsSectionGroup[] = [
     ]
   },
   {
+    id: "support",
     heading: en.options.groups.support,
     sections: [
       { id: "diagnostics", label: en.options.sections.diagnostics },
       ...(isAdvancedSettingsVisible()
-        ? [{ id: "advanced", label: en.options.sections.advanced } satisfies { id: OptionsSectionId; label: string }]
+        ? [
+            { id: "advanced", label: en.options.sections.advanced } satisfies {
+              id: OptionsSectionId;
+              label: string;
+            }
+          ]
         : [])
     ]
   }
 ];
+
+export const getOptionsSectionGroupId = (
+  section: OptionsSectionId
+): OptionsSectionGroupId =>
+  optionsSectionGroups.find((group) => group.sections.some((entry) => entry.id === section))?.id ??
+  "basic";
 
 export const getLanguageLabel = (languageCode: string): string =>
   en.languages[languageCode as keyof typeof en.languages] ?? languageCode;
@@ -113,6 +196,10 @@ export const getStyleLabel = (styleId: UserSettings["styleId"]): string =>
 
 export const getIncomingModeLabel = (incomingMode: UserSettings["incomingMode"]): string =>
   en.incomingModes[incomingMode] ?? incomingMode;
+
+export const getStartupBehaviorLabel = (
+  startupBehavior: UserSettings["startupBehavior"]
+): string => en.common.startupBehaviors[startupBehavior];
 
 export const getProviderStatusLabel = (status: ProviderStatus): string => en.providerStates[status];
 
@@ -173,20 +260,115 @@ export const buildValidationMessages = (
   }, {});
 };
 
+export const sanitizeRecentTargetLanguages = (
+  recentTargetLanguages: readonly string[]
+): RecentTargetLanguage[] => {
+  const sanitized: RecentTargetLanguage[] = [];
+
+  for (const languageCode of recentTargetLanguages) {
+    const parsed = recentTargetLanguageSchema.safeParse(languageCode);
+    if (!parsed.success || sanitized.includes(parsed.data)) {
+      continue;
+    }
+
+    sanitized.push(parsed.data);
+    if (sanitized.length === RECENT_TARGET_LANGUAGE_LIMIT) {
+      break;
+    }
+  }
+
+  return sanitized;
+};
+
+export const updateRecentTargetLanguages = (
+  recentTargetLanguages: readonly string[],
+  targetLanguage: UserSettings["targetLanguage"]
+): RecentTargetLanguage[] => {
+  const parsed = recentTargetLanguageSchema.safeParse(targetLanguage);
+  if (!parsed.success) {
+    return sanitizeRecentTargetLanguages(recentTargetLanguages);
+  }
+
+  return sanitizeRecentTargetLanguages([parsed.data, ...recentTargetLanguages]);
+};
+
+export const buildRecentTargetLanguageEntries = (
+  recentTargetLanguages: readonly string[]
+): RecentTargetLanguageEntry[] =>
+  sanitizeRecentTargetLanguages(recentTargetLanguages).map((code) => ({
+    code,
+    label: getLanguageLabel(code)
+  }));
+
+export const createTargetLanguageSettingsPatch = (
+  currentSettings: UserSettings,
+  targetLanguage: UserSettings["targetLanguage"]
+): Pick<UserSettings, "targetLanguage" | "recentTargetLanguages"> => ({
+  targetLanguage,
+  recentTargetLanguages: updateRecentTargetLanguages(
+    currentSettings.recentTargetLanguages,
+    targetLanguage
+  )
+});
+
+export const buildSettingsDraftState = (input: {
+  savedSettings: UserSettings;
+  draftSettings: UserSettings;
+  saveState: OptionsSaveState;
+}): SettingsDraftState => {
+  const changedFields = comparableSettingsFields.filter(
+    (field) => !areSettingsValuesEqual(input.savedSettings[field], input.draftSettings[field])
+  );
+
+  return {
+    saveState: input.saveState,
+    hasUnsavedChanges: changedFields.length > 0,
+    changedFields,
+    changedFieldCount: changedFields.length
+  };
+};
+
 export const buildOptionsState = (input: {
   activeSection: OptionsSectionId;
   saveState: OptionsSaveState;
   validationMessages: SettingsValidationMessages;
   telemetryEnabled: boolean;
   shortcutStatus: ShortcutStatusModel;
-}) =>
-  optionsStateSchema.parse({
+  savedSettings?: UserSettings;
+  draftSettings?: UserSettings;
+  recentTargetLanguages?: readonly string[];
+  destructiveActionPending?: "clearLocalData" | "resetSettings" | null;
+}) => {
+  const draftState =
+    input.savedSettings && input.draftSettings
+      ? buildSettingsDraftState({
+          savedSettings: input.savedSettings,
+          draftSettings: input.draftSettings,
+          saveState: input.saveState
+        })
+      : {
+          saveState: input.saveState,
+          hasUnsavedChanges: input.saveState === "dirty",
+          changedFields: [] as (keyof UserSettings)[],
+          changedFieldCount: 0
+        };
+
+  return optionsStateSchema.parse({
     activeSection: input.activeSection,
     saveState: input.saveState,
     hasBlockingValidation: Object.keys(input.validationMessages).length > 0,
     shortcutConflictDetected: input.shortcutStatus.state === "conflict",
-    telemetryEnabled: input.telemetryEnabled
+    telemetryEnabled: input.telemetryEnabled,
+    activeGroup: getOptionsSectionGroupId(input.activeSection),
+    hasUnsavedChanges: draftState.hasUnsavedChanges,
+    changedFieldCount: draftState.changedFieldCount,
+    changedFields: draftState.changedFields.map(String),
+    recentTargetLanguages: sanitizeRecentTargetLanguages(
+      input.recentTargetLanguages ?? input.draftSettings?.recentTargetLanguages ?? []
+    ),
+    destructiveActionPending: input.destructiveActionPending ?? null
   });
+};
 
 export const getSaveStateMessage = (saveState: OptionsSaveState): string | null => {
   switch (saveState) {
@@ -207,3 +389,13 @@ export const getSaveStateMessage = (saveState: OptionsSaveState): string | null 
 
 export const getLifecycleSummary = (providerHealth: ProviderHealth): string =>
   `${providerHealth.provider.toUpperCase()} | ${getProviderStatusLabel(providerHealth.state)}`;
+
+export const createPartialSettingsPatch = (
+  currentSettings: UserSettings,
+  update: PartialUserSettings
+): PartialUserSettings => ({
+  ...update,
+  ...(update.targetLanguage
+    ? createTargetLanguageSettingsPatch(currentSettings, update.targetLanguage)
+    : {})
+});

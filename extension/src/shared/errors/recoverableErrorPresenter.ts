@@ -19,6 +19,21 @@ export interface RecoverableErrorPresentation {
   secondaryAction: RecoveryActionDescriptor | null;
 }
 
+export type ValidationMessageId =
+  | "invalidProviderOverride"
+  | "missingCustomStyleName"
+  | "missingCustomStyleInstruction"
+  | "pendingUnsavedChanges"
+  | "confirmClearLocalData"
+  | "confirmResetSettings";
+
+export interface ValidationMessagePresentation {
+  title: string;
+  body: string;
+  severityLabel: string;
+  suggestedActionLabel: string | null;
+}
+
 const severityLabels: Record<SanitizedErrorSeverity, string> = {
   info: "Info",
   warning: "Warning",
@@ -151,6 +166,45 @@ const errorPresentationCatalog: Record<SanitizedErrorCode, CatalogEntry> = {
   }
 };
 
+const validationMessageCatalog: Record<ValidationMessageId, ValidationMessagePresentation> = {
+  invalidProviderOverride: {
+    title: "Provider override path needs attention",
+    body: "Choose a valid executable path before saving provider changes.",
+    severityLabel: "Needs attention",
+    suggestedActionLabel: "Select executable"
+  },
+  missingCustomStyleName: {
+    title: "Custom style name is missing",
+    body: "Name the custom style so the tone can be understood before it is reused.",
+    severityLabel: "Warning",
+    suggestedActionLabel: "Review custom style"
+  },
+  missingCustomStyleInstruction: {
+    title: "Custom style instruction is missing",
+    body: "Add the instruction text before the custom style can be saved safely.",
+    severityLabel: "Warning",
+    suggestedActionLabel: "Review custom style"
+  },
+  pendingUnsavedChanges: {
+    title: "There are pending settings changes",
+    body: "Save or cancel the current edits before leaving the section so the final state stays clear.",
+    severityLabel: "Warning",
+    suggestedActionLabel: "Save changes"
+  },
+  confirmClearLocalData: {
+    title: "Clearing local data needs explicit confirmation",
+    body: "Review the impact summary before session-only cache and diagnostics are removed.",
+    severityLabel: "Needs attention",
+    suggestedActionLabel: "Review impact"
+  },
+  confirmResetSettings: {
+    title: "Resetting settings needs explicit confirmation",
+    body: "Review the impact summary before saved defaults and local operational data are reset.",
+    severityLabel: "Needs attention",
+    suggestedActionLabel: "Review impact"
+  }
+};
+
 export const presentRecoverableError = (
   error: SanitizedError
 ): RecoverableErrorPresentation => {
@@ -173,3 +227,7 @@ export const presentRecoverableError = (
       : null
   };
 };
+
+export const presentValidationMessage = (
+  validationMessageId: ValidationMessageId
+): ValidationMessagePresentation => validationMessageCatalog[validationMessageId];
