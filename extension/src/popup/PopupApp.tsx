@@ -1,39 +1,28 @@
 import React from "react";
 
-import { createUnknownProviderHealth, type ProviderHealth } from "../domain/provider/providerHealth";
 import {
+  alignProviderHealthToProvider,
+  createUnknownProviderHealth,
+  type ProviderHealth
+} from "../domain/provider/providerHealth";
+import {
+  buildPopupState,
   createDefaultShortcutStatusModel,
-  getIncomingModeLabel,
-  getLanguageLabel,
-  getProviderStatusLabel,
-  getStyleLabel,
+  getPopupProviderSummary,
+  type PopupSetupState,
   type ShortcutStatusModel
 } from "../domain/settings/settingsViewModel";
 import { type UserSettings } from "../domain/settings/userSettings";
-import type { RecoveryAction } from "../shared/contracts/diagnostics";
-import { RecoveryActionPanel } from "../shared/components/RecoveryActionPanel";
+import { SurfacePanel } from "../shared/components/SurfacePanel";
 import { en } from "../shared/i18n/en";
 import { IncomingModeSelector } from "./components/IncomingModeSelector";
 import { LanguageStyleControls } from "./components/LanguageStyleControls";
+import { ManualActionRow } from "./components/ManualActionRow";
+import { PopupFooter } from "./components/PopupFooter";
+import { PopupHeader } from "./components/PopupHeader";
 
-const openOnboarding = async (): Promise<void> => {
-  if (typeof chrome === "undefined" || !chrome.tabs?.create || !chrome.runtime?.getURL) {
-    return;
-  }
-
-  await chrome.tabs.create({
-    url: chrome.runtime.getURL("src/onboarding/index.html"),
-    active: true
-  });
-};
-
-const openOptions = async (): Promise<void> => {
-  if (typeof chrome === "undefined" || !chrome.runtime?.openOptionsPage) {
-    return;
-  }
-
-  await chrome.runtime.openOptionsPage();
-};
+const getSetupDescription = (setupState: PopupSetupState): string =>
+  setupState === "blocked" ? en.popup.blockedBody : en.popup.setupPendingBody;
 
 export interface PopupAppProps {
   loading: boolean;
@@ -44,7 +33,12 @@ export interface PopupAppProps {
   onTargetLanguageChange?: (value: UserSettings["targetLanguage"]) => void;
   onStyleChange?: (value: UserSettings["styleId"]) => void;
   onIncomingModeChange?: (value: UserSettings["incomingMode"]) => void;
-  onRecoveryAction?: (action: RecoveryAction) => void;
+  onManualTranslate?: () => void;
+  onOpenSettings?: () => void;
+  onOpenPrivacy?: () => void;
+  onOpenDiagnostics?: () => void;
+  onResumeOnboarding?: () => void;
+  manualActionMessage?: string | null;
 }
 
 export function PopupApp({
@@ -56,126 +50,123 @@ export function PopupApp({
   onTargetLanguageChange,
   onStyleChange,
   onIncomingModeChange,
-  onRecoveryAction
+  onManualTranslate,
+  onOpenSettings,
+  onOpenPrivacy,
+  onOpenDiagnostics,
+  onResumeOnboarding,
+  manualActionMessage = null
 }: PopupAppProps) {
   if (loading) {
     return <main data-surface="popup">{en.popup.loading}</main>;
   }
 
-  if (settings.onboardingStatus !== "complete") {
-    return (
-      <main data-surface="popup">
-        <header>
-          <p>{en.appName}</p>
-          <h1>{en.popup.setupPendingTitle}</h1>
-        </header>
-        <p>{en.popup.setupPendingBody}</p>
-        <dl>
-          <div>
-            <dt>{en.popup.providerLabel}</dt>
-            <dd>{settings.providerActive}</dd>
-          </div>
-          <div>
-            <dt>{en.popup.targetLanguageLabel}</dt>
-            <dd>{getLanguageLabel(settings.targetLanguage)}</dd>
-          </div>
-          <div>
-            <dt>{en.popup.incomingModeLabel}</dt>
-            <dd>{getIncomingModeLabel(settings.incomingMode)}</dd>
-          </div>
-        </dl>
-        <div>
-          <button onClick={() => void openOnboarding()} type="button">
-            {en.popup.resumeOnboarding}
-          </button>
-          <button onClick={() => void openOptions()} type="button">
-            {en.popup.openSettings}
-          </button>
-        </div>
-      </main>
-    );
-  }
+  const alignedProviderHealth = alignProviderHealthToProvider(settings.providerActive, providerHealth);
+  const popupState = buildPopupState({
+    settings,
+    providerHealth: alignedProviderHealth,
+    shortcutStatus
+  });
+  const setupState = popupState.setupState ?? "ready";
+  const controlsDisabled = setupState !== "ready" || !settings.enabled;
+  const diagnosticsVisible = popupState.footerLinks?.some((link) => link.id === "diagnostics") ?? false;
+  const privacyVisible = popupState.footerLinks?.some((link) => link.id === "privacy") ?? false;
+  const showSetupCallout = setupState !== "ready";
+  const showPausedCallout = setupState === "ready" && !settings.enabled;
+  const showProviderAttention = !showSetupCallout && settings.enabled && popupState.diagnosticsAttentionRequired;
+  const manualDisabledReason = showSetupCallout
+    ? en.popup.manualActionDisabledSetup
+    : !settings.enabled
+      ? en.popup.manualActionDisabledPaused
+      : null;
 
   return (
-    <main data-surface="popup">
-      <header>
-        <p>{en.appName}</p>
-        <h1>{en.popup.dailyControlsTitle}</h1>
-        <label>
-          <input
-            checked={settings.enabled}
-            onChange={(event) => {
-              onToggleEnabled?.(event.currentTarget.checked);
-            }}
-            type="checkbox"
-          />
-          {en.popup.enableLabel}
-        </label>
-      </header>
-      <dl>
-        <div>
-          <dt>{en.popup.providerLabel}</dt>
-          <dd>
-            {settings.providerActive.toUpperCase()} | {getProviderStatusLabel(providerHealth.state)}
-          </dd>
-        </div>
-        <div>
-          <dt>{en.popup.targetLanguageLabel}</dt>
-          <dd>{getLanguageLabel(settings.targetLanguage)}</dd>
-        </div>
-        <div>
-          <dt>{en.popup.styleLabel}</dt>
-          <dd>{getStyleLabel(settings.styleId)}</dd>
-        </div>
-        <div>
-          <dt>{en.popup.manualShortcutLabel}</dt>
-          <dd>{shortcutStatus.shortcut ?? en.shortcuts.unassigned}</dd>
-        </div>
-      </dl>
-
-      <LanguageStyleControls
-        allowCustomStyle={settings.customStyle !== null}
-        onStyleChange={(value) => {
-          onStyleChange?.(value);
-        }}
-        onTargetLanguageChange={(value) => {
-          onTargetLanguageChange?.(value);
-        }}
-        styleId={settings.styleId}
-        targetLanguage={settings.targetLanguage}
+    <main className="popup-shell" data-surface="popup">
+      <PopupHeader
+        enabled={settings.enabled}
+        onToggleEnabled={onToggleEnabled}
+        providerHealth={alignedProviderHealth}
+        toggleDisabled={setupState !== "ready"}
       />
 
-      <IncomingModeSelector
-        onChange={(value) => {
-          onIncomingModeChange?.(value);
-        }}
-        value={settings.incomingMode}
-      />
-
-      <section aria-labelledby="popup-manual-section-title">
-        <h2 id="popup-manual-section-title">{en.popup.manualShortcutLabel}</h2>
-        <p>{shortcutStatus.summary}</p>
-        <p>{shortcutStatus.details}</p>
-        <p>{en.popup.manualShortcutHelp}</p>
-      </section>
-
-      {providerHealth.lastSanitizedError ? (
-        <section aria-labelledby="popup-recovery-title">
-          <h2 id="popup-recovery-title">Recovery</h2>
-          <p>{en.popup.diagnosticsHint}</p>
-          <RecoveryActionPanel
-            compact
-            error={providerHealth.lastSanitizedError}
-            onAction={(action) => {
-              onRecoveryAction?.(action);
-            }}
-          />
-        </section>
+      {showSetupCallout ? (
+        <SurfacePanel
+          badges={popupState.stateBadges}
+          dataSurface="popup-setup-callout"
+          description={getSetupDescription(setupState)}
+          headingLevel={2}
+          title={en.popup.setupPendingTitle}
+          tone="compact"
+        />
       ) : null}
 
-      <button onClick={() => void openOptions()} type="button">
-        {en.popup.openSettings}
-      </button>
+      {showPausedCallout ? (
+        <SurfacePanel
+          badges={popupState.stateBadges}
+          dataSurface="popup-paused-callout"
+          description={en.popup.pausedBody}
+          headingLevel={2}
+          title={en.popup.pausedTitle}
+          tone="compact"
+        />
+      ) : null}
+
+      {showProviderAttention ? (
+        <SurfacePanel
+          badges={popupState.stateBadges}
+          dataSurface="popup-provider-callout"
+          description={`${en.popup.providerNeedsAttentionBody} ${getPopupProviderSummary(popupState.providerStatus)}`}
+          headingLevel={2}
+          title={en.popup.providerNeedsAttentionTitle}
+          tone="compact"
+        />
+      ) : null}
+
+      <section aria-labelledby="popup-controls-title">
+        <h2 id="popup-controls-title">{en.popup.dailyControlsTitle}</h2>
+        <LanguageStyleControls
+          allowCustomStyle={settings.customStyle !== null}
+          disabled={controlsDisabled}
+          onStyleChange={(value) => {
+            onStyleChange?.(value);
+          }}
+          onTargetLanguageChange={(value) => {
+            onTargetLanguageChange?.(value);
+          }}
+          recentTargetLanguages={popupState.recentTargetLanguages}
+          styleId={settings.styleId}
+          targetLanguage={settings.targetLanguage}
+        />
+
+        <IncomingModeSelector
+          disabled={controlsDisabled}
+          onChange={(value) => {
+            onIncomingModeChange?.(value);
+          }}
+          value={settings.incomingMode}
+        />
+      </section>
+
+      <ManualActionRow
+        disabled={popupState.manualActionAvailable === false}
+        disabledReason={manualDisabledReason}
+        message={manualActionMessage}
+        onAction={onManualTranslate}
+        shortcutStatus={shortcutStatus}
+      />
+
+      {diagnosticsVisible ? <p>{en.popup.diagnosticsHint}</p> : null}
+
+      <PopupFooter
+        onOpenDiagnostics={onOpenDiagnostics}
+        onOpenPrivacy={onOpenPrivacy}
+        onOpenSettings={onOpenSettings}
+        onResumeOnboarding={onResumeOnboarding}
+        setupState={setupState}
+        showDiagnostics={diagnosticsVisible}
+        showPrivacy={privacyVisible}
+        showResumeOnboarding={showSetupCallout}
+      />
     </main>
   );
 }

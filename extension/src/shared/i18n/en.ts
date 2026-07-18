@@ -25,6 +25,7 @@ export const en = {
       attention: "Needs attention",
       blocked: "Blocked",
       diagnostics: "Diagnostics available",
+      paused: "Paused",
       ready: "Ready",
       safeProfile: "Safe profile",
       setupRequired: "Setup required"
@@ -63,22 +64,43 @@ export const en = {
   },
   popup: {
     loading: "Loading WA Translator settings...",
-    setupPendingTitle: "Setup not complete",
+    setupPendingTitle: "Setup required",
     setupPendingBody:
-      "Translation stays blocked until privacy disclosure, the local companion, and the synthetic provider health check are complete.",
+      "Finish privacy disclosure, local companion setup, and the synthetic provider health check before translation can run.",
+    blockedBody:
+      "Setup is blocked until the local companion and provider checks can complete safely.",
+    pausedTitle: "Translation is paused",
+    pausedBody:
+      "Automatic and manual translation stay paused until WA Translator is enabled again.",
+    providerNeedsAttentionTitle: "Provider needs attention",
+    providerNeedsAttentionBody:
+      "Translation controls stay visible, but diagnostics should be reviewed before relying on new results.",
     dailyControlsTitle: "Daily controls",
     enableLabel: "Enable WA Translator",
     providerLabel: "Provider",
+    providerSummaryLabel: "Provider summary",
     targetLanguageLabel: "Translate to",
     sourceLanguageLabel: "Source language",
     styleLabel: "Style",
     incomingModeLabel: "Incoming messages",
+    recentLanguagesLabel: "Recent",
+    allLanguagesLabel: "All MVP languages",
+    manualSectionTitle: "Manual translate",
     manualShortcutLabel: "Manual translate shortcut",
-    manualActionLabel: "Manual translate",
-    manualShortcutHelp:
-      "Use the shortcut from WhatsApp Web to translate the current selection or active composer safely.",
+    manualActionLabel: "Translate current selection",
+    manualActionHelp:
+      "Runs the same safe manual preview flow as the keyboard shortcut, using the active WhatsApp selection or composer.",
+    manualActionUnsupportedContext:
+      "Open WhatsApp Web, then select a message or focus the composer before using manual translate.",
+    manualActionDisabledSetup:
+      "Finish setup before manual or incoming translation can run safely.",
+    manualActionDisabledPaused:
+      "Enable WA Translator to resume manual and incoming translation.",
+    providerPendingSummary: "Provider status is loading in the background.",
+    providerCheckingSummary: "Checking provider readiness with a synthetic health check.",
     providerReadySummary: "Provider is ready for translation requests.",
     providerAttentionSummary: "Provider needs attention before translation can continue safely.",
+    safeProfileSummary: "Translation-only safe profile active.",
     privacyLabel: "Privacy",
     diagnosticsLabel: "Diagnostics",
     openSettings: "Open settings",
@@ -182,3 +204,4 @@ export const en = {
     fallback: "Use Chrome shortcut settings to assign or fix the manual translate command."
   }
 } as const;
+

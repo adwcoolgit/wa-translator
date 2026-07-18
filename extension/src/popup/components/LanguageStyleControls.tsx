@@ -1,7 +1,11 @@
-import React from "react";
+﻿import React from "react";
 
 import type { UserSettings } from "../../domain/settings/userSettings";
-import { languageOptions, styleOptions } from "../../domain/settings/settingsViewModel";
+import {
+  buildRecentTargetLanguageEntries,
+  languageOptions,
+  styleOptions
+} from "../../domain/settings/settingsViewModel";
 import { en } from "../../shared/i18n/en";
 
 export interface LanguageStyleControlsProps {
@@ -9,6 +13,7 @@ export interface LanguageStyleControlsProps {
   targetLanguage: UserSettings["targetLanguage"];
   styleId: UserSettings["styleId"];
   allowCustomStyle?: boolean;
+  recentTargetLanguages?: readonly string[];
   onTargetLanguageChange: (value: UserSettings["targetLanguage"]) => void;
   onStyleChange: (value: UserSettings["styleId"]) => void;
 }
@@ -18,12 +23,15 @@ export function LanguageStyleControls({
   targetLanguage,
   styleId,
   allowCustomStyle = true,
+  recentTargetLanguages = [],
   onTargetLanguageChange,
   onStyleChange
 }: LanguageStyleControlsProps) {
   const availableStyleOptions = allowCustomStyle
     ? styleOptions
     : styleOptions.filter((option) => option.value !== "custom");
+  const recentEntries = buildRecentTargetLanguageEntries(recentTargetLanguages);
+  const recentCodes = new Set(recentEntries.map((entry) => entry.code));
 
   return (
     <div className="popup-control-grid">
@@ -33,15 +41,28 @@ export function LanguageStyleControls({
           aria-label={en.popup.targetLanguageLabel}
           disabled={disabled}
           onChange={(event) => {
-            onTargetLanguageChange(event.currentTarget.value);
+            onTargetLanguageChange(event.currentTarget.value as UserSettings["targetLanguage"]);
           }}
           value={targetLanguage}
         >
-          {languageOptions.map((option) => (
-            <option key={option.value} value={option.value}>
-              {option.label}
-            </option>
-          ))}
+          {recentEntries.length > 0 ? (
+            <optgroup label={en.popup.recentLanguagesLabel}>
+              {recentEntries.map((option) => (
+                <option key={`recent-${option.code}`} value={option.code}>
+                  {option.label}
+                </option>
+              ))}
+            </optgroup>
+          ) : null}
+          <optgroup label={en.popup.allLanguagesLabel}>
+            {languageOptions
+              .filter((option) => !recentCodes.has(option.value as (typeof recentEntries)[number]["code"]))
+              .map((option) => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
+          </optgroup>
         </select>
       </label>
 

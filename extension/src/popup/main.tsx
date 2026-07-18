@@ -1,17 +1,23 @@
-﻿import React, { startTransition, useEffect, useEffectEvent, useState } from "react";
+import React, { startTransition, useEffect, useEffectEvent, useState } from "react";
 import { createRoot } from "react-dom/client";
 
 import { CompanionLifecycleService } from "../background/companionLifecycleService";
 import { createUnknownProviderHealth, type ProviderHealth } from "../domain/provider/providerHealth";
 import {
-  buildShortcutStatusModel,
   createDefaultShortcutStatusModel,
   createPartialSettingsPatch,
   type ShortcutStatusModel
 } from "../domain/settings/settingsViewModel";
 import { createSettingsRepository } from "../domain/settings/settingsRepository";
 import { createDefaultUserSettings, type UserSettings } from "../domain/settings/userSettings";
+import { en } from "../shared/i18n/en";
 import { PopupApp } from "./PopupApp";
+import {
+  loadShortcutStatus,
+  openOnboardingPage,
+  openOptionsPage,
+  triggerManualTranslationFromPopup
+} from "./popupActions";
 
 const settingsRepository = createSettingsRepository();
 const companionLifecycleService = new CompanionLifecycleService();
@@ -27,18 +33,6 @@ const syncState = (
   });
 };
 
-const loadShortcutStatus = async (): Promise<ShortcutStatusModel> =>
-  await new Promise<ShortcutStatusModel>((resolve) => {
-    if (typeof chrome === "undefined" || !chrome.commands?.getAll) {
-      resolve(createDefaultShortcutStatusModel());
-      return;
-    }
-
-    chrome.commands.getAll((commands) => {
-      resolve(buildShortcutStatusModel(commands));
-    });
-  });
-
 function App() {
   const [settings, setSettings] = useState<UserSettings>(() => createDefaultUserSettings());
   const [loading, setLoading] = useState(true);
@@ -48,6 +42,7 @@ function App() {
   const [shortcutStatus, setShortcutStatus] = useState<ShortcutStatusModel>(() =>
     createDefaultShortcutStatusModel()
   );
+  const [manualActionMessage, setManualActionMessage] = useState<string | null>(null);
 
   const loadSettings = useEffectEvent(async () => {
     const loadedSettings = await settingsRepository.initialize();
@@ -71,6 +66,13 @@ function App() {
     });
   });
 
+  const handleManualTranslate = useEffectEvent(async () => {
+    const result = await triggerManualTranslationFromPopup();
+    startTransition(() => {
+      setManualActionMessage(result === "sent" ? null : en.popup.manualActionUnsupportedContext);
+    });
+  });
+
   useEffect(() => {
     void loadSettings();
   }, [loadSettings]);
@@ -78,8 +80,24 @@ function App() {
   return (
     <PopupApp
       loading={loading}
+      manualActionMessage={manualActionMessage}
       onIncomingModeChange={(value) => {
         void saveQuickSetting({ incomingMode: value });
+      }}
+      onManualTranslate={() => {
+        void handleManualTranslate();
+      }}
+      onOpenDiagnostics={() => {
+        void openOptionsPage("diagnostics");
+      }}
+      onOpenPrivacy={() => {
+        void openOptionsPage("privacy");
+      }}
+      onOpenSettings={() => {
+        void openOptionsPage();
+      }}
+      onResumeOnboarding={() => {
+        void openOnboardingPage();
       }}
       onStyleChange={(value) => {
         void saveQuickSetting({
@@ -104,5 +122,3 @@ const root = document.getElementById("root");
 if (root) {
   createRoot(root).render(<App />);
 }
-
-

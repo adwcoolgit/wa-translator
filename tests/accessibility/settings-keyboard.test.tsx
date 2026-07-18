@@ -1,4 +1,4 @@
-// @vitest-environment jsdom
+﻿// @vitest-environment jsdom
 import { render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
@@ -31,7 +31,7 @@ describe("settings keyboard accessibility", () => {
 
     const enableToggle = screen.getByRole("checkbox", { name: /enable wa translator/i });
     const targetLanguage = screen.getByRole("combobox", { name: /translate to/i });
-    const incomingMode = screen.getByRole("combobox", { name: /incoming messages/i });
+    const incomingMode = screen.getByRole("radio", { name: /inline/i });
 
     enableToggle.focus();
     expect(document.activeElement).toBe(enableToggle);

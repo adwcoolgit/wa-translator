@@ -1,4 +1,4 @@
-import { z } from "zod";
+﻿import { z } from "zod";
 
 import { sanitizedErrorSchema } from "../../shared/contracts/diagnostics";
 import { providerSchema } from "../../shared/contracts/translation";
@@ -29,6 +29,14 @@ export const createUnknownProviderHealth = (
     lastCheckedAt: null,
     lastSanitizedError: null
   });
+
+export const alignProviderHealthToProvider = (
+  provider: "codex" | "claude",
+  providerHealth: ProviderHealth
+): ProviderHealth =>
+  providerHealth.provider === provider
+    ? providerHealth
+    : createUnknownProviderHealth(provider);
 
 export const bucketLatency = (latencyMs: number): string => {
   if (latencyMs < 1_000) {
