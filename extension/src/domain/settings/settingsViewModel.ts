@@ -1,8 +1,14 @@
-import type { ProviderHealth } from "../provider/providerHealth";
+﻿import type { ProviderHealth } from "../provider/providerHealth";
+import { alignProviderHealthToProvider } from "../provider/providerHealth";
 import {
   optionsStateSchema,
+  popupStateSchema,
   type OptionsSaveState,
-  type ProviderStatus
+  type PopupState,
+  type ProviderStatus,
+  type StateBadge,
+  type StateBadgeTone,
+  type SurfaceLink
 } from "../../shared/contracts/uiState";
 import { isAdvancedSettingsVisible } from "../../shared/featureFlags/mvpFeatureFlags";
 import { en } from "../../shared/i18n/en";
@@ -61,6 +67,8 @@ export type SettingsDraftState = {
   changedFieldCount: number;
 };
 
+export type PopupSetupState = "ready" | "required" | "blocked";
+
 const SUPPORTED_TARGET_LANGUAGE_CODES = [
   "id",
   "en",
@@ -84,6 +92,16 @@ const STYLE_IDS = [
 const INCOMING_MODE_IDS = ["inline", "tooltip", "onDemand", "off"] as const;
 const STARTUP_BEHAVIOR_IDS = ["restoreLastEnabled", "startDisabled"] as const;
 const RECENT_TARGET_LANGUAGE_LIMIT = 5;
+const DIAGNOSTIC_PROVIDER_STATUSES: readonly ProviderStatus[] = [
+  "missing",
+  "authRequired",
+  "timeout",
+  "rateLimited",
+  "invalidOutput",
+  "unsafeConfiguration",
+  "versionMismatch",
+  "unavailable"
+];
 const comparableSettingsFields: readonly (keyof UserSettings)[] = [
   "enabled",
   "onboardingStatus",
@@ -203,6 +221,61 @@ export const getStartupBehaviorLabel = (
 
 export const getProviderStatusLabel = (status: ProviderStatus): string => en.providerStates[status];
 
+export const getPopupSetupState = (settings: UserSettings): PopupSetupState => {
+  if (settings.onboardingStatus === "complete") {
+    return "ready";
+  }
+
+  if (settings.onboardingStatus === "blocked") {
+    return "blocked";
+  }
+
+  return "required";
+};
+
+export const shouldShowPopupDiagnostics = (providerHealth: ProviderHealth): boolean =>
+  providerHealth.lastSanitizedError !== null || DIAGNOSTIC_PROVIDER_STATUSES.includes(providerHealth.state);
+
+export const getProviderStateBadgeTone = (status: ProviderStatus): StateBadgeTone => {
+  switch (status) {
+    case "ready":
+      return "ready";
+    case "checking":
+      return "info";
+    case "missing":
+    case "authRequired":
+    case "timeout":
+    case "rateLimited":
+    case "invalidOutput":
+    case "unsafeConfiguration":
+    case "versionMismatch":
+    case "unavailable":
+      return "warning";
+    default:
+      return "neutral";
+  }
+};
+
+export const getPopupProviderSummary = (status: ProviderStatus): string => {
+  switch (status) {
+    case "ready":
+      return en.popup.providerReadySummary;
+    case "checking":
+      return en.popup.providerCheckingSummary;
+    case "missing":
+    case "authRequired":
+    case "timeout":
+    case "rateLimited":
+    case "invalidOutput":
+    case "unsafeConfiguration":
+    case "versionMismatch":
+    case "unavailable":
+      return en.popup.providerAttentionSummary;
+    default:
+      return en.popup.providerPendingSummary;
+  }
+};
+
 export const createDefaultShortcutStatusModel = (): ShortcutStatusModel => ({
   commandName: "manual-translate-selection",
   shortcut: null,
@@ -310,6 +383,121 @@ export const createTargetLanguageSettingsPatch = (
     targetLanguage
   )
 });
+
+const buildPopupStateBadges = (
+  setupState: PopupSetupState,
+  enabled: boolean,
+  providerHealth: ProviderHealth,
+  diagnosticsAttentionRequired: boolean
+): StateBadge[] => {
+  const badges: StateBadge[] = [];
+
+  if (setupState !== "ready") {
+    badges.push({
+      label: en.common.stateBadges.setupRequired,
+      tone: "warning"
+    });
+  } else if (!enabled) {
+    badges.push({
+      label: en.common.stateBadges.paused,
+      tone: "warning"
+    });
+  }
+
+  badges.push({
+    label: getProviderStatusLabel(providerHealth.state),
+    tone: getProviderStateBadgeTone(providerHealth.state),
+    supportingText: providerHealth.versionCategory ?? undefined
+  });
+
+  if (diagnosticsAttentionRequired) {
+    badges.push({
+      label: en.common.stateBadges.diagnostics,
+      tone: "warning"
+    });
+  }
+
+  return badges;
+};
+
+const buildPopupFooterLinks = (
+  setupState: PopupSetupState,
+  diagnosticsAttentionRequired: boolean
+): SurfaceLink[] => {
+  const links: SurfaceLink[] = [
+    {
+      id: "settings",
+      label: en.popup.openSettings
+    }
+  ];
+
+  if (setupState !== "ready") {
+    links.push({
+      id: "privacy",
+      label: en.popup.privacyLabel
+    });
+  }
+
+  if (diagnosticsAttentionRequired) {
+    links.push({
+      id: "diagnostics",
+      label: en.popup.diagnosticsLabel
+    });
+  }
+
+  return links;
+};
+
+export const buildPopupState = (input: {
+  settings: UserSettings;
+  providerHealth: ProviderHealth;
+  shortcutStatus: ShortcutStatusModel;
+}): PopupState => {
+  const providerHealth = alignProviderHealthToProvider(
+    input.settings.providerActive,
+    input.providerHealth
+  );
+  const setupState = getPopupSetupState(input.settings);
+  const diagnosticsAttentionRequired = shouldShowPopupDiagnostics(providerHealth);
+
+  return popupStateSchema.parse({
+    enabled: input.settings.enabled,
+    targetLanguage: input.settings.targetLanguage,
+    styleId: input.settings.styleId,
+    incomingMode: input.settings.incomingMode,
+    shortcutLabel: input.shortcutStatus.shortcut,
+    providerStatus: providerHealth.state,
+    diagnosticsAttentionRequired,
+    hasValidatedSelection: false,
+    setupState,
+    recentTargetLanguages: sanitizeRecentTargetLanguages(input.settings.recentTargetLanguages),
+    manualActionAvailable: setupState === "ready" && input.settings.enabled,
+    providerSummary: {
+      selectedProvider: input.settings.providerActive,
+      readiness: providerHealth.state,
+      autoDetectedPathSummary: null,
+      manualOverrideState: "none",
+      lastHealthCategory: providerHealth.lastLatencyBucket,
+      safeProfileSummary: en.popup.safeProfileSummary,
+      availableActions: diagnosticsAttentionRequired
+        ? [
+            {
+              id: "open-diagnostics",
+              label: en.common.actions.openDiagnostics,
+              emphasis: "secondary"
+            }
+          ]
+        : []
+    },
+    stateBadges: buildPopupStateBadges(
+      setupState,
+      input.settings.enabled,
+      providerHealth,
+      diagnosticsAttentionRequired
+    ),
+    footerLinks: buildPopupFooterLinks(setupState, diagnosticsAttentionRequired)
+  });
+};
 
 export const buildSettingsDraftState = (input: {
   savedSettings: UserSettings;
