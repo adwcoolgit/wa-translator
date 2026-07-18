@@ -5,7 +5,9 @@ import {
   buildSettingsDraftState,
   createPartialSettingsPatch,
   createTargetLanguageSettingsPatch,
+  getLastHealthResultLabel,
   getOptionsSectionGroupId,
+  getProviderHealthValidationMessages,
   getStartupBehaviorLabel,
   sanitizeRecentTargetLanguages,
   updateRecentTargetLanguages
@@ -81,4 +83,29 @@ describe("settings view model helpers", () => {
       { code: "en", label: "English" }
     ]);
   });
+
+  it("isolates provider validation messages and formats the last health result label", () => {
+    expect(
+      getProviderHealthValidationMessages({
+        providerExecutablePathOverride: "Invalid path",
+        customStyle: "Missing custom style",
+        providerTimeoutSeconds: "Too small"
+      })
+    ).toEqual({
+      providerExecutablePathOverride: "Invalid path",
+      providerTimeoutSeconds: "Too small"
+    });
+
+    expect(
+      getLastHealthResultLabel({
+        provider: "codex",
+        state: "ready",
+        versionCategory: "synthetic-translation-ok",
+        lastLatencyBucket: "1s-3s",
+        lastCheckedAt: Date.now(),
+        lastSanitizedError: null
+      })
+    ).toBe("Ready (1s-3s)");
+  });
 });
+

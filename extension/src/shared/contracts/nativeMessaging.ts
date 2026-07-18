@@ -67,6 +67,7 @@ export const providerHealthCheckRequestSchema = z
     syntheticText: z.string().trim().min(1).max(500),
     sourceLanguage: z.string().trim().min(1),
     targetLanguage: z.string().trim().min(1),
+    executablePathOverride: z.string().trim().min(3).max(260).nullable(),
     timeoutSeconds: z.number().int().min(5).max(120)
   })
   .strict();
@@ -163,3 +164,4 @@ export type NativeProviderHealthCheckResultMessage = z.infer<typeof nativeProvid
 export type NativeErrorMessage = z.infer<typeof nativeErrorMessageSchema>;
 export type OutboundNativeHostMessage = z.infer<typeof outboundNativeHostMessageSchema>;
 export type InboundNativeHostMessage = z.infer<typeof inboundNativeHostMessageSchema>;
+

@@ -1,14 +1,18 @@
-﻿import React, { startTransition, useEffect, useEffectEvent, useMemo, useState } from "react";
+import React, { startTransition, useEffect, useEffectEvent, useMemo, useState } from "react";
 import { createRoot } from "react-dom/client";
 
 import { CompanionLifecycleService } from "../background/companionLifecycleService";
 import { createDiagnosticsExportService } from "../diagnostics/diagnosticsExportService";
 import { createRecoveryDiagnosticsRecorder } from "../diagnostics/recoveryDiagnostics";
 import { createUnknownProviderHealth, type ProviderHealth } from "../domain/provider/providerHealth";
-import { createLocalDataActions } from "../domain/settings/localDataActions";
+import {
+  createLocalDataActions,
+  type LocalDataActionId
+} from "../domain/settings/localDataActions";
 import {
   buildShortcutStatusModel,
   buildValidationMessages,
+  getProviderHealthValidationMessages,
   createDefaultShortcutStatusModel,
   createPartialSettingsPatch,
   type OptionsSectionId,
@@ -37,6 +41,18 @@ const loadShortcutStatus = async (): Promise<ShortcutStatusModel> =>
     });
   });
 
+const openOnboardingPage = (): void => {
+  if (typeof window === "undefined") {
+    return;
+  }
+
+  const onboardingUrl = typeof chrome !== "undefined" && chrome.runtime?.getURL
+    ? chrome.runtime.getURL("src/onboarding/index.html")
+    : "src/onboarding/index.html";
+
+  window.open(onboardingUrl, "_blank", "noopener,noreferrer");
+};
+
 function App() {
   const [settings, setSettings] = useState<UserSettings>(() => createDefaultUserSettings());
   const [draftSettings, setDraftSettings] = useState<UserSettings>(() => createDefaultUserSettings());
@@ -47,7 +63,7 @@ function App() {
     createDefaultShortcutStatusModel()
   );
   const [activeSection, setActiveSection] = useState<OptionsSectionId>(() =>
-    typeof window === "undefined" ? "translation" : parseOptionsSectionFromHash(window.location.hash)
+    typeof window === "undefined" ? "general" : parseOptionsSectionFromHash(window.location.hash)
   );
   const [saveState, setSaveState] = useState<
     "clean" | "dirty" | "saving" | "saved" | "validationError" | "saveFailed"
@@ -55,6 +71,7 @@ function App() {
   const [diagnosticsPreview, setDiagnosticsPreview] = useState<string | null>(null);
   const [diagnosticsStatusMessage, setDiagnosticsStatusMessage] = useState<string | null>(null);
   const [localDataStatusMessage, setLocalDataStatusMessage] = useState<string | null>(null);
+  const [destructiveActionPending, setDestructiveActionPending] = useState<LocalDataActionId | null>(null);
 
   const validationMessages = useMemo(
     () => buildValidationMessages(draftSettings),
@@ -74,18 +91,20 @@ function App() {
       setProviderHealth(nextProviderHealth);
       setShortcutStatus(nextShortcutStatus);
       setSaveState("clean");
+      setDestructiveActionPending(null);
     });
   });
 
   const saveSettings = useEffectEvent(async () => {
-    const normalized = normalizeUserSettings(draftSettings);
-    const validation = buildValidationMessages(normalized);
+    const validation = buildValidationMessages(draftSettings);
     if (Object.keys(validation).length > 0) {
       startTransition(() => {
         setSaveState("validationError");
       });
       return;
     }
+
+    const normalized = normalizeUserSettings(draftSettings);
 
     startTransition(() => {
       setSaveState("saving");
@@ -109,6 +128,61 @@ function App() {
         setSaveState("saveFailed");
       });
     }
+  });
+
+  const runProviderHealthCheck = useEffectEvent(async () => {
+    const providerValidation = getProviderHealthValidationMessages(
+      buildValidationMessages(draftSettings)
+    );
+    if (Object.keys(providerValidation).length > 0) {
+      startTransition(() => {
+        setSaveState("validationError");
+      });
+      return;
+    }
+
+    const nextProviderHealth = await companionLifecycleService.runSyntheticProviderHealthCheck(
+      draftSettings.providerActive,
+      draftSettings
+    );
+
+    startTransition(() => {
+      setProviderHealth(nextProviderHealth);
+    });
+  });
+
+  const confirmDestructiveAction = useEffectEvent(async () => {
+    if (!destructiveActionPending) {
+      return;
+    }
+
+    const result =
+      destructiveActionPending === "clearLocalData"
+        ? await localDataActions.clearLocalData()
+        : await localDataActions.resetSettings();
+
+    if (destructiveActionPending === "clearLocalData") {
+      recoveryDiagnostics.recordPrivacyAction("clearLocalData");
+      startTransition(() => {
+        setDestructiveActionPending(null);
+        setLocalDataStatusMessage(result.statusMessage);
+      });
+      return;
+    }
+
+    const nextProviderHealth = await companionLifecycleService.runSyntheticProviderHealthCheck(
+      result.settings.providerActive,
+      result.settings
+    );
+    recoveryDiagnostics.recordPrivacyAction("resetSettings");
+    startTransition(() => {
+      setSettings(result.settings);
+      setDraftSettings(result.settings);
+      setProviderHealth(nextProviderHealth);
+      setSaveState("clean");
+      setLocalDataStatusMessage(result.statusMessage);
+      setDestructiveActionPending(null);
+    });
   });
 
   useEffect(() => {
@@ -153,6 +227,7 @@ function App() {
   return (
     <OptionsApp
       activeSection={activeSection}
+      destructiveActionPending={destructiveActionPending}
       diagnosticsPreview={diagnosticsPreview}
       diagnosticsStatusMessage={diagnosticsStatusMessage}
       draftSettings={draftSettings}
@@ -163,14 +238,13 @@ function App() {
           setSaveState("clean");
         });
       }}
-      onClearLocalData={() => {
-        void (async () => {
-          const result = await localDataActions.clearLocalData();
-          recoveryDiagnostics.recordPrivacyAction("clearLocalData");
-          startTransition(() => {
-            setLocalDataStatusMessage(result.statusMessage);
-          });
-        })();
+      onCancelDestructiveAction={() => {
+        startTransition(() => {
+          setDestructiveActionPending(null);
+        });
+      }}
+      onConfirmDestructiveAction={() => {
+        void confirmDestructiveAction();
       }}
       onDownloadDiagnosticsExport={() => {
         if (!diagnosticsPreview || typeof document === "undefined") {
@@ -193,6 +267,9 @@ function App() {
               [field]: value
             } as Partial<UserSettings>)
           }));
+          if (field === "providerActive") {
+            setProviderHealth(createUnknownProviderHealth(value as UserSettings["providerActive"]));
+          }
           setSaveState("dirty");
         });
       }}
@@ -213,22 +290,16 @@ function App() {
           });
         })();
       }}
-      onResetSettings={() => {
-        void (async () => {
-          const result = await localDataActions.resetSettings();
-          const nextProviderHealth = await companionLifecycleService.runSyntheticProviderHealthCheck(
-            result.settings.providerActive,
-            result.settings
-          );
-          recoveryDiagnostics.recordPrivacyAction("resetSettings");
-          startTransition(() => {
-            setSettings(result.settings);
-            setDraftSettings(result.settings);
-            setProviderHealth(nextProviderHealth);
-            setSaveState("clean");
-            setLocalDataStatusMessage(result.statusMessage);
-          });
-        })();
+      onRequestDestructiveAction={(actionId) => {
+        startTransition(() => {
+          setDestructiveActionPending(actionId);
+        });
+      }}
+      onResumeOnboarding={() => {
+        openOnboardingPage();
+      }}
+      onRunProviderHealthCheck={() => {
+        void runProviderHealthCheck();
       }}
       onSave={() => {
         void saveSettings();
@@ -241,6 +312,7 @@ function App() {
       }}
       providerHealth={providerHealth}
       saveState={saveState}
+      savedSettings={settings}
       shortcutStatus={shortcutStatus}
       validationMessages={validationMessages}
     />
@@ -251,6 +323,4 @@ const root = document.getElementById("root");
 if (root) {
   createRoot(root).render(<App />);
 }
-
-
 

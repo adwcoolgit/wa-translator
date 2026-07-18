@@ -24,6 +24,7 @@ export function ShortcutStatus({ model, onOpenShortcutSettings }: ShortcutStatus
         </div>
       </dl>
       <p>{model.details}</p>
+      <p>Chrome owns the final binding. Use Chrome shortcut settings whenever this page reports missing or conflicting shortcuts.</p>
       <button onClick={onOpenShortcutSettings} type="button">
         {en.options.openChromeShortcuts}
       </button>

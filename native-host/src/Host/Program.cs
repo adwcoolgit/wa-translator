@@ -68,6 +68,7 @@ internal static class Program
             SyntheticText: payload.GetProperty("syntheticText").GetString() ?? string.Empty,
             SourceLanguage: payload.GetProperty("sourceLanguage").GetString() ?? "auto",
             TargetLanguage: payload.GetProperty("targetLanguage").GetString() ?? "id",
+            ExecutablePathOverride: payload.TryGetProperty("executablePathOverride", out var executableOverrideElement) ? executableOverrideElement.GetString() : null,
             TimeoutSeconds: payload.TryGetProperty("timeoutSeconds", out var timeoutElement) ? timeoutElement.GetInt32() : 30);
 
         var result = ProviderHealthCheckService.Run(providerRequest);
@@ -143,3 +144,4 @@ internal static class Program
         output.Flush();
     }
 }
+

@@ -11,19 +11,16 @@ import { disclaimerCopy } from "../../shared/i18n/disclaimerCopy";
 import { en } from "../../shared/i18n/en";
 
 export interface PrivacyDiagnosticsPageProps {
-  activeSection: Extract<OptionsSectionId, "privacy" | "diagnostics" | "advanced">;
+  activeSection: Extract<OptionsSectionId, "privacy" | "diagnostics">;
   providerHealth: ProviderHealth;
   settings: UserSettings;
   shortcutStatus: ShortcutStatusModel;
   validationMessages: SettingsValidationMessages;
   diagnosticsPreview: string | null;
   diagnosticsStatusMessage: string | null;
-  localDataStatusMessage: string | null;
   onFieldChange: <K extends keyof UserSettings>(field: K, value: UserSettings[K]) => void;
   onPrepareDiagnosticsExport?: () => void;
   onDownloadDiagnosticsExport?: () => void;
-  onClearLocalData?: () => void;
-  onResetSettings?: () => void;
 }
 
 export function PrivacyDiagnosticsPage({
@@ -34,22 +31,10 @@ export function PrivacyDiagnosticsPage({
   validationMessages,
   diagnosticsPreview,
   diagnosticsStatusMessage,
-  localDataStatusMessage,
   onFieldChange,
   onPrepareDiagnosticsExport,
-  onDownloadDiagnosticsExport,
-  onClearLocalData,
-  onResetSettings
+  onDownloadDiagnosticsExport
 }: PrivacyDiagnosticsPageProps) {
-  if (activeSection === "advanced") {
-    return (
-      <section aria-labelledby="advanced-settings-title">
-        <h2 id="advanced-settings-title">{en.options.sections.advanced}</h2>
-        <p>{en.options.advancedHidden}</p>
-      </section>
-    );
-  }
-
   if (activeSection === "diagnostics") {
     return (
       <section aria-labelledby="diagnostics-settings-title">
@@ -70,6 +55,7 @@ export function PrivacyDiagnosticsPage({
           </div>
         </dl>
         <p>{disclaimerCopy.about}</p>
+        <p>Exports stay operational and content-free so message text never appears in diagnostics.</p>
         <div>
           <button onClick={onPrepareDiagnosticsExport} type="button">
             Prepare diagnostics export
@@ -124,20 +110,6 @@ export function PrivacyDiagnosticsPage({
         </label>
 
         <label>
-          {en.options.undoSecondsLabel}
-          <input
-            aria-invalid={validationMessages.undoSeconds ? "true" : "false"}
-            aria-label={en.options.undoSecondsLabel}
-            min={5}
-            onChange={(event) => {
-              onFieldChange("undoSeconds", Number.parseInt(event.currentTarget.value, 10) || 0);
-            }}
-            type="number"
-            value={settings.undoSeconds}
-          />
-        </label>
-
-        <label>
           <input
             checked={settings.telemetryEnabled}
             onChange={(event) => {
@@ -149,18 +121,10 @@ export function PrivacyDiagnosticsPage({
         </label>
       </div>
 
-      <section aria-labelledby="privacy-data-actions-title">
-        <h3 id="privacy-data-actions-title">Local data actions</h3>
-        <p>Clear session-only cache and diagnostics without changing saved settings, or reset everything to defaults.</p>
-        <div>
-          <button onClick={onClearLocalData} type="button">
-            Clear local data
-          </button>
-          <button onClick={onResetSettings} type="button">
-            Reset settings
-          </button>
-        </div>
-        {localDataStatusMessage ? <p role="status">{localDataStatusMessage}</p> : null}
+      <section aria-labelledby="privacy-impact-title">
+        <h3 id="privacy-impact-title">Operational impact</h3>
+        <p>{en.options.clearLocalDataImpact}</p>
+        <p>{en.options.resetSettingsImpact}</p>
       </section>
     </section>
   );

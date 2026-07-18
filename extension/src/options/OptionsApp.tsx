@@ -1,13 +1,10 @@
 import React from "react";
 
 import type { ProviderHealth } from "../domain/provider/providerHealth";
+import type { LocalDataActionId } from "../domain/settings/localDataActions";
 import {
   buildOptionsState,
   getSaveStateMessage,
-  incomingModeOptions,
-  optionsSectionGroups,
-  sourceLanguageOptions,
-  styleOptions,
   type OptionsSectionId,
   type SettingsValidationMessages,
   type ShortcutStatusModel
@@ -16,11 +13,17 @@ import type { UserSettings } from "../domain/settings/userSettings";
 import type { OptionsSaveState } from "../shared/contracts/uiState";
 import { isAdvancedSettingsVisible } from "../shared/featureFlags/mvpFeatureFlags";
 import { en } from "../shared/i18n/en";
+import { DestructiveActionDialog } from "./components/DestructiveActionDialog";
 import { ShortcutStatus } from "./components/ShortcutStatus";
+import { GeneralSettingsPage } from "./pages/GeneralSettingsPage";
 import { PrivacyDiagnosticsPage } from "./pages/PrivacyDiagnosticsPage";
 import { ProviderSettingsPage } from "./pages/ProviderSettingsPage";
+import { StyleSettingsPage } from "./pages/StyleSettingsPage";
+import { TranslationSettingsPage } from "./pages/TranslationSettingsPage";
+import { AdvancedSettingsPage } from "./pages/AdvancedSettingsPage";
 
 export interface OptionsAppProps {
+  savedSettings: UserSettings;
   draftSettings: UserSettings;
   providerHealth: ProviderHealth;
   saveState: OptionsSaveState;
@@ -30,15 +33,19 @@ export interface OptionsAppProps {
   diagnosticsPreview: string | null;
   diagnosticsStatusMessage: string | null;
   localDataStatusMessage: string | null;
+  destructiveActionPending: LocalDataActionId | null;
   onFieldChange: <K extends keyof UserSettings>(field: K, value: UserSettings[K]) => void;
   onSectionChange: (section: OptionsSectionId) => void;
   onSave: () => void;
   onCancel: () => void;
+  onResumeOnboarding?: () => void;
   onOpenShortcutSettings?: () => void;
   onPrepareDiagnosticsExport?: () => void;
   onDownloadDiagnosticsExport?: () => void;
-  onClearLocalData?: () => void;
-  onResetSettings?: () => void;
+  onRequestDestructiveAction?: (actionId: LocalDataActionId) => void;
+  onConfirmDestructiveAction?: () => void;
+  onCancelDestructiveAction?: () => void;
+  onRunProviderHealthCheck?: () => void;
 }
 
 const editableSections: OptionsSectionId[] = [
@@ -49,7 +56,26 @@ const editableSections: OptionsSectionId[] = [
   "privacy"
 ];
 
+const groupedSections: { id: "basic" | "system" | "support"; heading: string; sections: OptionsSectionId[] }[] = [
+  {
+    id: "basic",
+    heading: en.options.groups.basic,
+    sections: ["general", "translation", "styles"]
+  },
+  {
+    id: "system",
+    heading: en.options.groups.system,
+    sections: ["provider", "shortcuts", "privacy"]
+  },
+  {
+    id: "support",
+    heading: en.options.groups.support,
+    sections: ["diagnostics", ...(isAdvancedSettingsVisible() ? (["advanced"] as OptionsSectionId[]) : [])]
+  }
+];
+
 export function OptionsApp({
+  savedSettings,
   draftSettings,
   providerHealth,
   saveState,
@@ -59,22 +85,30 @@ export function OptionsApp({
   diagnosticsPreview,
   diagnosticsStatusMessage,
   localDataStatusMessage,
+  destructiveActionPending,
   onFieldChange,
   onSectionChange,
   onSave,
   onCancel,
+  onResumeOnboarding,
   onOpenShortcutSettings,
   onPrepareDiagnosticsExport,
   onDownloadDiagnosticsExport,
-  onClearLocalData,
-  onResetSettings
+  onRequestDestructiveAction,
+  onConfirmDestructiveAction,
+  onCancelDestructiveAction,
+  onRunProviderHealthCheck
 }: OptionsAppProps) {
   const optionsState = buildOptionsState({
     activeSection,
     saveState,
     validationMessages,
     telemetryEnabled: draftSettings.telemetryEnabled,
-    shortcutStatus
+    shortcutStatus,
+    savedSettings,
+    draftSettings,
+    recentTargetLanguages: draftSettings.recentTargetLanguages,
+    destructiveActionPending
   });
   const saveStateMessage = getSaveStateMessage(optionsState.saveState);
   const isEditableSection = editableSections.includes(activeSection);
@@ -89,20 +123,20 @@ export function OptionsApp({
 
       <div className="options-layout">
         <nav aria-label="Settings navigation" className="options-nav">
-          {optionsSectionGroups.map((group) => (
-            <section key={group.heading}>
+          {groupedSections.map((group) => (
+            <section key={group.id}>
               <h2>{group.heading}</h2>
               <ul>
-                {group.sections.map((section) => (
-                  <li key={section.id}>
+                {group.sections.map((sectionId) => (
+                  <li key={sectionId}>
                     <button
-                      aria-current={section.id === activeSection ? "page" : undefined}
+                      aria-current={sectionId === activeSection ? "page" : undefined}
                       onClick={() => {
-                        onSectionChange(section.id);
+                        onSectionChange(sectionId);
                       }}
                       type="button"
                     >
-                      {section.label}
+                      {en.options.sections[sectionId]}
                     </button>
                   </li>
                 ))}
@@ -113,167 +147,32 @@ export function OptionsApp({
 
         <section className="options-content">
           {activeSection === "general" ? (
-            <section aria-labelledby="general-settings-title">
-              <h2 id="general-settings-title">{en.options.sections.general}</h2>
-              <p>{en.options.generalDescription}</p>
-              <label>
-                UI language
-                <select
-                  aria-label="UI language"
-                  onChange={(event) => {
-                    onFieldChange("uiLanguage", event.currentTarget.value);
-                  }}
-                  value={draftSettings.uiLanguage}
-                >
-                  <option value="id">Indonesian</option>
-                  <option value="en">English</option>
-                </select>
-              </label>
-            </section>
+            <GeneralSettingsPage
+              localDataStatusMessage={localDataStatusMessage}
+              onFieldChange={onFieldChange}
+              onRequestDestructiveAction={onRequestDestructiveAction}
+              onResumeOnboarding={onResumeOnboarding}
+              settings={draftSettings}
+              validationMessages={validationMessages}
+            />
           ) : null}
 
           {activeSection === "translation" ? (
-            <section aria-labelledby="translation-settings-title">
-              <h2 id="translation-settings-title">{en.options.sections.translation}</h2>
-              <p>{en.options.translationDescription}</p>
-              <div className="options-field-grid">
-                <label>
-                  {en.popup.sourceLanguageLabel}
-                  <select
-                    aria-label={en.popup.sourceLanguageLabel}
-                    onChange={(event) => {
-                      onFieldChange("sourceLanguage", event.currentTarget.value);
-                    }}
-                    value={draftSettings.sourceLanguage}
-                  >
-                    {sourceLanguageOptions.map((option) => (
-                      <option key={option.value} value={option.value}>
-                        {option.label}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-
-                <label>
-                  {en.popup.targetLanguageLabel}
-                  <select
-                    aria-label={en.popup.targetLanguageLabel}
-                    onChange={(event) => {
-                      onFieldChange("targetLanguage", event.currentTarget.value);
-                    }}
-                    value={draftSettings.targetLanguage}
-                  >
-                    {sourceLanguageOptions
-                      .filter((option) => option.value !== "auto")
-                      .map((option) => (
-                        <option key={option.value} value={option.value}>
-                          {option.label}
-                        </option>
-                      ))}
-                  </select>
-                </label>
-
-                <label>
-                  {en.popup.incomingModeLabel}
-                  <select
-                    aria-label={en.popup.incomingModeLabel}
-                    onChange={(event) => {
-                      onFieldChange("incomingMode", event.currentTarget.value as UserSettings["incomingMode"]);
-                    }}
-                    value={draftSettings.incomingMode}
-                  >
-                    {incomingModeOptions.map((option) => (
-                      <option key={option.value} value={option.value}>
-                        {option.label}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-
-                <label>
-                  Manual mode
-                  <select
-                    aria-label="Manual mode"
-                    onChange={(event) => {
-                      onFieldChange("manualMode", event.currentTarget.value as UserSettings["manualMode"]);
-                    }}
-                    value={draftSettings.manualMode}
-                  >
-                    <option value="preview">Preview</option>
-                    <option value="directReplace">Direct replace</option>
-                  </select>
-                </label>
-              </div>
-            </section>
+            <TranslationSettingsPage
+              onFieldChange={onFieldChange}
+              settings={draftSettings}
+              validationMessages={validationMessages}
+            />
           ) : null}
 
           {activeSection === "styles" ? (
-            <section aria-labelledby="styles-settings-title">
-              <h2 id="styles-settings-title">{en.options.sections.styles}</h2>
-              <p>{en.options.stylesDescription}</p>
-              <div className="options-field-grid">
-                <label>
-                  {en.popup.styleLabel}
-                  <select
-                    aria-label={en.popup.styleLabel}
-                    onChange={(event) => {
-                      const styleId = event.currentTarget.value as UserSettings["styleId"];
-                      onFieldChange("styleId", styleId);
-                    }}
-                    value={draftSettings.styleId}
-                  >
-                    {styleOptions.map((option) => (
-                      <option key={option.value} value={option.value}>
-                        {option.label}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-
-                {draftSettings.styleId === "custom" ? (
-                  <>
-                    <label>
-                      {en.options.customStyleNameLabel}
-                      <input
-                        aria-label={en.options.customStyleNameLabel}
-                        onChange={(event) => {
-                          onFieldChange("customStyle", {
-                            name: event.currentTarget.value,
-                            instruction: draftSettings.customStyle?.instruction ?? "",
-                            isValid:
-                              Boolean(event.currentTarget.value.trim()) &&
-                              Boolean(draftSettings.customStyle?.instruction.trim())
-                          });
-                        }}
-                        type="text"
-                        value={draftSettings.customStyle?.name ?? ""}
-                      />
-                    </label>
-                    <label>
-                      {en.options.customStyleInstructionLabel}
-                      <textarea
-                        aria-label={en.options.customStyleInstructionLabel}
-                        onChange={(event) => {
-                          onFieldChange("customStyle", {
-                            name: draftSettings.customStyle?.name ?? "Custom style",
-                            instruction: event.currentTarget.value,
-                            isValid:
-                              Boolean(draftSettings.customStyle?.name?.trim()) &&
-                              Boolean(event.currentTarget.value.trim())
-                          });
-                        }}
-                        value={draftSettings.customStyle?.instruction ?? ""}
-                      />
-                    </label>
-                  </>
-                ) : null}
-              </div>
-            </section>
+            <StyleSettingsPage onFieldChange={onFieldChange} settings={draftSettings} />
           ) : null}
 
           {activeSection === "provider" ? (
             <ProviderSettingsPage
               onFieldChange={onFieldChange}
+              onRunHealthCheck={onRunProviderHealthCheck}
               providerHealth={providerHealth}
               settings={draftSettings}
               validationMessages={validationMessages}
@@ -289,39 +188,23 @@ export function OptionsApp({
               activeSection={activeSection}
               diagnosticsPreview={diagnosticsPreview}
               diagnosticsStatusMessage={diagnosticsStatusMessage}
-              localDataStatusMessage={localDataStatusMessage}
-              onClearLocalData={onClearLocalData}
               onDownloadDiagnosticsExport={onDownloadDiagnosticsExport}
               onFieldChange={onFieldChange}
               onPrepareDiagnosticsExport={onPrepareDiagnosticsExport}
               providerHealth={providerHealth}
-              onResetSettings={onResetSettings}
               settings={draftSettings}
               shortcutStatus={shortcutStatus}
               validationMessages={validationMessages}
             />
           ) : null}
 
-          {activeSection === "advanced" && isAdvancedSettingsVisible() ? (
-            <PrivacyDiagnosticsPage
-              activeSection="advanced"
-              diagnosticsPreview={diagnosticsPreview}
-              diagnosticsStatusMessage={diagnosticsStatusMessage}
-              localDataStatusMessage={localDataStatusMessage}
-              onClearLocalData={onClearLocalData}
-              onDownloadDiagnosticsExport={onDownloadDiagnosticsExport}
-              onFieldChange={onFieldChange}
-              onPrepareDiagnosticsExport={onPrepareDiagnosticsExport}
-              providerHealth={providerHealth}
-              onResetSettings={onResetSettings}
-              settings={draftSettings}
-              shortcutStatus={shortcutStatus}
-              validationMessages={validationMessages}
-            />
-          ) : null}
+          {activeSection === "advanced" && isAdvancedSettingsVisible() ? <AdvancedSettingsPage /> : null}
 
           <footer className="options-footer">
             {saveStateMessage ? <p role="status">{saveStateMessage}</p> : null}
+            {optionsState.hasUnsavedChanges ? (
+              <p>{optionsState.changedFieldCount} setting field(s) pending save on this page.</p>
+            ) : null}
             {isEditableSection ? (
               <div>
                 <button
@@ -347,6 +230,19 @@ export function OptionsApp({
           </footer>
         </section>
       </div>
+
+      {destructiveActionPending ? (
+        <DestructiveActionDialog
+          actionId={destructiveActionPending}
+          onCancel={() => {
+            onCancelDestructiveAction?.();
+          }}
+          onConfirm={() => {
+            onConfirmDestructiveAction?.();
+          }}
+        />
+      ) : null}
     </main>
   );
 }
+

@@ -34,6 +34,7 @@ public sealed class ProviderHealthCheckServiceTests
                 SyntheticText: "WA Translator synthetic health check.",
                 SourceLanguage: "en",
                 TargetLanguage: "id",
+                ExecutablePathOverride: null,
                 TimeoutSeconds: 15));
 
             Assert.Equal("success", result.Status);
@@ -70,6 +71,7 @@ public sealed class ProviderHealthCheckServiceTests
                 SyntheticText: "WA Translator synthetic health check.",
                 SourceLanguage: "en",
                 TargetLanguage: "id",
+                ExecutablePathOverride: null,
                 TimeoutSeconds: 15));
 
             Assert.Equal("error", result.Status);
@@ -82,4 +84,41 @@ public sealed class ProviderHealthCheckServiceTests
             Environment.SetEnvironmentVariable(variableName, previousValue);
         }
     }
+
+    [Fact]
+    public void RunUsesManualOverrideExecutableWhenProvided()
+    {
+        var overrideExecutablePath = Path.GetTempFileName();
+
+        try
+        {
+            var service = new ProviderHealthCheckService((command, _) =>
+            {
+                Assert.Equal(overrideExecutablePath, command.ExecutablePath);
+
+                return new ProviderProbeExecutionResult(
+                    ExitCode: 0,
+                    TimedOut: false,
+                    StandardOutput: string.Empty,
+                    StandardError: string.Empty,
+                    OutputText: "Tes sintetis berhasil.");
+            });
+
+            var result = service.Run(new ProviderHealthCheckRequest(
+                RequestId: "health-codex-override",
+                Provider: "codex",
+                SyntheticText: "WA Translator synthetic health check.",
+                SourceLanguage: "en",
+                TargetLanguage: "id",
+                ExecutablePathOverride: overrideExecutablePath,
+                TimeoutSeconds: 15));
+
+            Assert.Equal("success", result.Status);
+        }
+        finally
+        {
+            File.Delete(overrideExecutablePath);
+        }
+    }
 }
+

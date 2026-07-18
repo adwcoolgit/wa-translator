@@ -1,4 +1,5 @@
 import type { ProviderHealth } from "../../domain/provider/providerHealth";
+import { getProviderStatusLabel } from "../../domain/settings/settingsViewModel";
 import type { ProviderId } from "../../shared/contracts/translation";
 
 export interface ProviderHealthStepProps {
@@ -27,8 +28,8 @@ export function ProviderHealthStep({
     <section aria-labelledby="provider-health-title" className="onboarding-card">
       <h2 id="provider-health-title">Provider selection and health check</h2>
       <p>
-        Health check ini hanya memakai synthetic sample text. Tidak ada isi chat WhatsApp yang
-        dikirim selama onboarding belum selesai.
+        This health check only uses synthetic sample text. No WhatsApp chat content is sent while
+        onboarding is incomplete.
       </p>
 
       <fieldset>
@@ -54,7 +55,7 @@ export function ProviderHealthStep({
         </div>
         <div>
           <dt>Status</dt>
-          <dd>{currentHealth.state}</dd>
+          <dd>{getProviderStatusLabel(currentHealth.state)}</dd>
         </div>
         <div>
           <dt>Version category</dt>

@@ -1,4 +1,4 @@
-﻿export const CURRENT_USER_SETTINGS_SCHEMA_VERSION = 3;
+export const CURRENT_USER_SETTINGS_SCHEMA_VERSION = 4;
 
 const SUPPORTED_TARGET_LANGUAGE_CODES = new Set(["id", "en", "ms", "zh-CN", "ja", "ko", "ar", "es"]);
 const MAX_RECENT_TARGET_LANGUAGES = 5;
@@ -63,6 +63,14 @@ export const migrateUserSettingsInput = (input: unknown): Record<string, unknown
     migrated.providerProfile = migrated.providerModelLabel;
   }
   delete migrated.providerModelLabel;
+
+  if (
+    typeof migrated.providerExecutablePathOverride !== "string" &&
+    typeof migrated.providerOverridePath === "string"
+  ) {
+    migrated.providerExecutablePathOverride = migrated.providerOverridePath;
+  }
+  delete migrated.providerOverridePath;
 
   if (typeof migrated.startupBehavior !== "string") {
     if (migrated.restoreEnabledOnStartup === false) {

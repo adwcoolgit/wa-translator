@@ -19,6 +19,7 @@ describe("provider synthetic health check contract", () => {
     expect(message.type).toBe("providerHealthCheckRequest");
     expect(parsedRequest.syntheticText).toBe(SYNTHETIC_HEALTH_CHECK_TEXT);
     expect(parsedRequest.targetLanguage).toBe(defaultUserSettings.targetLanguage);
+    expect(parsedRequest.executablePathOverride).toBeNull();
     expect(parsedRequest.timeoutSeconds).toBe(defaultUserSettings.providerTimeoutSeconds);
   });
 
@@ -45,3 +46,4 @@ describe("provider synthetic health check contract", () => {
     expect(health.lastLatencyBucket).toBe("1s-3s");
   });
 });
+
